@@ -6,18 +6,6 @@
 import { useState } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  BookOpen, 
-  Send, 
-  Sparkles, 
-  AlertCircle, 
-  CheckCircle2, 
-  ArrowRight,
-  GraduationCap,
-  MapPin,
-  History,
-  Languages
-} from 'lucide-react';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -26,12 +14,15 @@ interface FeedbackItem {
   error: string;
   sugerencia: string;
   explicacion: string;
+  categoria: string;
 }
 
 interface EvaluationResult {
   saludo: string;
   retroalimentacion: FeedbackItem[];
   consejoOro: string;
+  puntuacion: number;
+  tituloAnalisis: string;
 }
 
 export default function App() {
@@ -78,13 +69,16 @@ ACCIONES:
 5. Mitigación de sesgos: No penalices el uso de palabras locales o dialectos; en su lugar, sugiere cómo integrarlos en un texto académico.
 
 SALIDA (JSON):
-- saludo: Un breve comentario (máx. 50 palabras) que resalte algo positivo del contenido o la historia que el estudiante contó. Si el texto no es válido, úsalo para orientar al estudiante.
-- retroalimentacion: Una lista de objetos con 'error', 'sugerencia' y 'explicacion'.
-- consejoOro: Una sugerencia final para mejorar la estructura del ensayo (Introducción, Desarrollo o Conclusión) de forma sencilla.`,
+- tituloAnalisis: Un título corto y motivador para el análisis (ej: "Un relato con alma", "Tradición vibrante").
+- saludo: Un breve comentario (máx. 80 palabras) que resalte algo positivo del contenido o la historia que el estudiante contó. Si el texto no es válido, úsalo para orientar al estudiante.
+- retroalimentacion: Una lista de objetos con 'error', 'sugerencia', 'explicacion' y 'categoria' (ej: "Ortografía", "Concordancia", "Vocabulario").
+- consejoOro: Una sugerencia final para mejorar la estructura del ensayo de forma sencilla.
+- puntuacion: Una puntuación estimada del 1 al 100 basada en el nivel esperado para grado 7.º.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              tituloAnalisis: { type: Type.STRING },
               saludo: { type: Type.STRING },
               retroalimentacion: {
                 type: Type.ARRAY,
@@ -93,14 +87,16 @@ SALIDA (JSON):
                   properties: {
                     error: { type: Type.STRING },
                     sugerencia: { type: Type.STRING },
-                    explicacion: { type: Type.STRING }
+                    explicacion: { type: Type.STRING },
+                    categoria: { type: Type.STRING }
                   },
-                  required: ["error", "sugerencia", "explicacion"]
+                  required: ["error", "sugerencia", "explicacion", "categoria"]
                 }
               },
-              consejoOro: { type: Type.STRING }
+              consejoOro: { type: Type.STRING },
+              puntuacion: { type: Type.NUMBER }
             },
-            required: ["saludo", "retroalimentacion", "consejoOro"]
+            required: ["tituloAnalisis", "saludo", "retroalimentacion", "consejoOro", "puntuacion"]
           }
         }
       });
@@ -118,76 +114,76 @@ SALIDA (JSON):
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <motion.header 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12"
-      >
-        <div className="flex justify-center mb-4">
-          <div className="bg-warm-accent/10 p-3 rounded-2xl">
-            <GraduationCap className="w-10 h-10 text-warm-accent" />
-          </div>
+    <div className="min-h-screen selection:bg-secondary-container selection:text-on-secondary-container">
+      {/* TopAppBar */}
+      <header className="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-md flex justify-between items-center px-6 py-4 border-b border-outline-variant/10">
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-primary">menu_book</span>
+          <span className="font-headline text-xl font-bold tracking-tighter text-primary">Atheneum Editorial</span>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold text-warm-accent mb-2">Escriba</h1>
-        <p className="text-warm-muted max-w-lg mx-auto">
-          Mentor de Redacción para la Institución Educativa Retiro de los Indios
-        </p>
-        <div className="flex items-center justify-center gap-4 mt-4 text-xs font-medium uppercase tracking-widest text-warm-accent/60">
-          <span className="flex items-center gap-1"><MapPin size={14} /> Cereté, Córdoba</span>
-          <span className="w-1 h-1 bg-warm-accent/30 rounded-full"></span>
-          <span className="flex items-center gap-1"><History size={14} /> Tradición Local</span>
+        <div className="flex items-center gap-6">
+          <nav className="hidden md:flex gap-8 items-center">
+            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-on-background/60 hover:text-primary transition-colors" href="#">Biblioteca</a>
+            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-on-background/60 hover:text-primary transition-colors" href="#">Lienzo</a>
+            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-primary font-bold" href="#">Revisión</a>
+            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-on-background/60 hover:text-primary transition-colors" href="#">Mentor</a>
+          </nav>
+          <span className="material-symbols-outlined text-primary cursor-pointer">account_circle</span>
         </div>
-      </motion.header>
+      </header>
 
-      <main className="w-full space-y-8">
+      <main className="pt-24 pb-32 px-4 max-w-5xl mx-auto">
+        {/* Editorial Header Section */}
+        <section className="mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <span className="font-label text-primary font-bold uppercase tracking-[0.2em] text-[10px] mb-2 block">Sesión de Revisión</span>
+            <h1 className="font-headline text-5xl md:text-6xl font-extrabold tracking-tighter text-on-background">Retroalimentación</h1>
+          </div>
+          <div className="text-right">
+            <p className="font-label text-sm text-outline font-medium italic">Institución Educativa Retiro de los Indios</p>
+            <p className="font-label text-xs text-outline/60">{new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>
+        </section>
+
         {/* Input Section */}
-        <motion.section 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="warm-card p-6 md:p-8"
-        >
-          <div className="flex items-center gap-2 mb-4 text-warm-accent">
-            <BookOpen size={20} />
-            <h2 className="text-xl font-semibold">Escribe tu ensayo o relato</h2>
-          </div>
-          <p className="text-sm text-warm-muted mb-4">
-            Cuéntanos sobre tus tradiciones, tu identidad o alguna historia de tu comunidad. 
-            (Máximo 3 párrafos)
-          </p>
-          <textarea
-            value={essay}
-            onChange={(e) => setEssay(e.target.value)}
-            placeholder="En mi pueblo, Retiro de los Indios, la tradición de..."
-            className="input-field min-h-[200px] text-lg leading-relaxed resize-none"
-            disabled={loading}
-          />
-          <div className="mt-6 flex justify-end">
-            <button
-              onClick={handleEvaluate}
-              disabled={loading || !essay.trim()}
-              className="accent-button flex items-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Sparkles size={20} />
-                  </motion.div>
-                  Evaluando...
-                </>
-              ) : (
-                <>
-                  <Send size={20} />
-                  Enviar para revisión
-                </>
-              )}
-            </button>
-          </div>
-        </motion.section>
+        {!result && (
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-16"
+          >
+            <div className="bg-surface-container-lowest canvas-shadow rounded-xl p-8 md:p-12 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full satin-gradient"></div>
+              <h2 className="font-headline text-2xl font-bold mb-6 text-primary">Comparte tu historia</h2>
+              <textarea
+                value={essay}
+                onChange={(e) => setEssay(e.target.value)}
+                placeholder="Escribe aquí tu ensayo sobre tradiciones, relatos locales o identidad cultural..."
+                className="input-field min-h-[300px] mb-6"
+                disabled={loading}
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={handleEvaluate}
+                  disabled={loading || !essay.trim()}
+                  className="px-8 py-3 satin-gradient text-on-primary rounded-lg font-label font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin">sync</span>
+                      Analizando...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined">send</span>
+                      Enviar para revisión
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.section>
+        )}
 
         {/* Error Message */}
         <AnimatePresence>
@@ -196,10 +192,10 @@ SALIDA (JSON):
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-red-50 border border-red-100 text-red-700 p-4 rounded-2xl flex items-start gap-3"
+              className="mb-8 bg-error/10 border border-error/20 text-error p-4 rounded-xl flex items-start gap-3"
             >
-              <AlertCircle className="shrink-0 mt-0.5" size={20} />
-              <p>{error}</p>
+              <span className="material-symbols-outlined">error</span>
+              <p className="font-label text-sm font-medium">{error}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -207,105 +203,140 @@ SALIDA (JSON):
         {/* Results Section */}
         <AnimatePresence>
           {result && (
-            <motion.section
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-8 pb-12"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-16"
             >
-              {/* Saludo */}
-              <div className="warm-card p-6 md:p-8 border-l-4 border-l-warm-accent">
-                <div className="flex items-center gap-2 mb-4 text-warm-accent">
-                  <Sparkles size={20} />
-                  <h3 className="text-lg font-semibold uppercase tracking-wider">Comentario del Mentor</h3>
-                </div>
-                <p className="serif-text text-2xl italic text-warm-accent/90 leading-relaxed">
-                  "{result.saludo}"
-                </p>
-              </div>
-
-              {/* Feedback Table */}
-              <div className="warm-card overflow-hidden">
-                <div className="p-6 border-b border-black/5 flex items-center gap-2 text-warm-accent">
-                  <Languages size={20} />
-                  <h3 className="text-lg font-semibold">Retroalimentación Técnica</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-warm-accent/5 text-warm-accent/70 text-xs uppercase tracking-widest">
-                        <th className="px-6 py-4 font-semibold">Error detectado</th>
-                        <th className="px-6 py-4 font-semibold">Sugerencia</th>
-                        <th className="px-6 py-4 font-semibold">¿Por qué?</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/5">
-                      {result.retroalimentacion.length > 0 ? (
-                        result.retroalimentacion.map((item, idx) => (
-                          <motion.tr 
-                            key={idx}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            className="hover:bg-warm-accent/[0.02] transition-colors"
-                          >
-                            <td className="px-6 py-4 font-medium text-red-600/80">{item.error}</td>
-                            <td className="px-6 py-4 font-medium text-green-700/80">{item.sugerencia}</td>
-                            <td className="px-6 py-4 text-sm text-warm-muted leading-relaxed">{item.explicacion}</td>
-                          </motion.tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-warm-muted italic">
-                            <div className="flex flex-col items-center gap-2">
-                              <CheckCircle2 className="text-green-500" size={32} />
-                              ¡Excelente trabajo! No se detectaron errores técnicos importantes.
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Consejo de Oro */}
-              <div className="warm-card p-6 md:p-8 bg-warm-accent text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <Sparkles size={120} />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-4 opacity-80">
-                    <ArrowRight size={20} />
-                    <h3 className="text-sm font-bold uppercase tracking-[0.2em]">Consejo de Oro</h3>
+              {/* Mentor's Warm Note */}
+              <section>
+                <div className="bg-surface-container-lowest canvas-shadow rounded-xl p-8 md:p-12 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full satin-gradient"></div>
+                  <div className="flex items-start gap-6">
+                    <div className="hidden sm:block">
+                      <div className="w-16 h-16 rounded-full bg-secondary-container flex items-center justify-center">
+                        <span className="material-symbols-outlined text-secondary text-3xl">school</span>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="font-headline text-2xl font-bold mb-4 text-primary">{result.tituloAnalisis}</h2>
+                      <div className="space-y-4 text-lg leading-relaxed text-on-surface italic">
+                        <p>{result.saludo}</p>
+                      </div>
+                      <div className="mt-8 flex gap-3">
+                        <span className="px-4 py-1.5 bg-secondary-container text-on-secondary-container rounded-full text-xs font-label font-bold uppercase tracking-wide">Progreso Académico</span>
+                        <span className="px-4 py-1.5 bg-tertiary-container text-on-tertiary-container rounded-full text-xs font-label font-bold uppercase tracking-wide">Identidad Cultural</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xl md:text-2xl font-serif leading-relaxed">
-                    {result.consejoOro}
-                  </p>
                 </div>
-              </div>
+              </section>
 
-              {/* Reset Button */}
-              <div className="flex justify-center pt-4">
-                <button 
-                  onClick={() => {
-                    setResult(null);
-                    setEssay("");
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="text-warm-accent/60 hover:text-warm-accent text-sm font-medium flex items-center gap-2 transition-colors"
-                >
-                  Escribir un nuevo ensayo
-                </button>
-              </div>
-            </motion.section>
+              {/* Pedagogical Table */}
+              <section className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="font-headline text-xl font-bold tracking-tight">Desglose de Sugerencias</h3>
+                  <div className="h-px flex-1 mx-6 bg-outline-variant/20 hidden sm:block"></div>
+                </div>
+                <div className="overflow-hidden bg-surface-container rounded-xl border border-outline-variant/10">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-surface-container-high">
+                          <th className="p-6 font-label text-xs font-bold uppercase tracking-widest text-outline">Error detectado</th>
+                          <th className="p-6 font-label text-xs font-bold uppercase tracking-widest text-outline">Sugerencia</th>
+                          <th className="p-6 font-label text-xs font-bold uppercase tracking-widest text-outline">¿Por qué?</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant/20">
+                        {result.retroalimentacion.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-surface-container-low transition-colors group">
+                            <td className="p-6 align-top">
+                              <div className="flex flex-col gap-2">
+                                <span className="text-error font-body font-bold italic">"{item.error}"</span>
+                                <span className="text-[10px] font-label text-outline bg-surface-container-high px-2 py-0.5 rounded w-fit uppercase">{item.categoria}</span>
+                              </div>
+                            </td>
+                            <td className="p-6 align-top">
+                              <span className="text-secondary font-body font-bold">"{item.sugerencia}"</span>
+                            </td>
+                            <td className="p-6 align-top">
+                              <p className="font-body text-sm text-on-surface-variant leading-relaxed">
+                                {item.explicacion}
+                              </p>
+                            </td>
+                          </tr>
+                        ))}
+                        {result.retroalimentacion.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="p-12 text-center">
+                              <span className="material-symbols-outlined text-secondary text-5xl mb-4">verified</span>
+                              <p className="font-body text-on-surface-variant italic">¡Excelente! No se encontraron errores técnicos. Tu texto fluye maravillosamente.</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              {/* Final CTA / Bento Decoration */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 bg-surface-container-low p-8 rounded-xl border border-outline-variant/10 flex flex-col justify-between">
+                  <div>
+                    <h4 className="font-headline text-xl font-bold mb-2">Consejo de Oro</h4>
+                    <p className="font-body text-on-surface-variant italic mb-6">{result.consejoOro}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <button 
+                      onClick={() => {
+                        setResult(null);
+                        setEssay("");
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="px-8 py-3 satin-gradient text-on-primary rounded-lg font-label font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined">edit</span>
+                      Nueva Revisión
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-primary-container p-8 rounded-xl text-on-primary-container relative overflow-hidden flex flex-col justify-center">
+                  <div className="absolute -right-4 -bottom-4 opacity-10">
+                    <span className="material-symbols-outlined text-[120px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_stories</span>
+                  </div>
+                  <p className="font-label text-xs font-bold uppercase tracking-[0.3em] mb-4">Puntuación Estimada</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-headline text-6xl font-extrabold tracking-tighter">{result.puntuacion}</span>
+                    <span className="font-headline text-2xl opacity-60">/ 100</span>
+                  </div>
+                </div>
+              </section>
+            </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      <footer className="mt-auto pt-12 text-center text-warm-muted text-xs">
-        <p>© 2026 Institución Educativa Retiro de los Indios</p>
-        <p className="mt-1">Cereté, Córdoba - Colombia</p>
-      </footer>
+      {/* BottomNavBar */}
+      <nav className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-20 px-4 pb-safe bg-surface z-50 border-t border-outline-variant/20 shadow-[0px_-4px_16px_rgba(28,28,25,0.04)]">
+        <a className="flex flex-col items-center justify-center text-on-background/50" href="#">
+          <span className="material-symbols-outlined">auto_stories</span>
+          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Biblioteca</span>
+        </a>
+        <a className="flex flex-col items-center justify-center text-on-background/50" href="#">
+          <span className="material-symbols-outlined">edit_note</span>
+          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Lienzo</span>
+        </a>
+        <a className="flex flex-col items-center justify-center text-primary bg-secondary-container/20 rounded-xl px-4 py-1" href="#">
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>forum</span>
+          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Revisión</span>
+        </a>
+        <a className="flex flex-col items-center justify-center text-on-background/50" href="#">
+          <span className="material-symbols-outlined">school</span>
+          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Mentor</span>
+        </a>
+      </nav>
     </div>
   );
 }
