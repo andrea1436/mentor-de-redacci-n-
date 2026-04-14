@@ -1,0 +1,34 @@
+{
+  "entities": {
+    "EssayEvaluation": {
+      "title": "EssayEvaluation",
+      "description": "Stores the evaluation results of a student essay.",
+      "type": "object",
+      "properties": {
+        "nombreEstudiante": { "type": "string", "description": "Full name of the student." },
+        "grado": { "type": "string", "description": "Grade level of the student." },
+        "tituloEnsayo": { "type": "string", "description": "Title of the essay." },
+        "ensayoOriginal": { "type": "string", "description": "The original text written by the student." },
+        "fecha": { "type": "string", "description": "Date of the evaluation." },
+        "puntuacion": { "type": "number", "description": "Estimated score out of 100." },
+        "mensajeMotivacion": { "type": "string", "description": "Personalized motivational message." },
+        "observacionesDetalladas": {
+          "type": "array",
+          "description": "List of detailed observations."
+        },
+        "resumenCategorias": {
+          "type": "array",
+          "description": "Summary of errors by category."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the record was created." }
+      },
+      "required": ["nombreEstudiante", "grado", "tituloEnsayo", "ensayoOriginal", "fecha", "puntuacion", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/essays/{essayId}": {
+      "schema": "EssayEvaluation",
+      "description": "Collection of essay evaluations."
+    }
+  }
+}

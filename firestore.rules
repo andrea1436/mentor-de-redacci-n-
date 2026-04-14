@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: essays
+    // Document ID: auto-generated
+    // Fields:
+    //   - nombreEstudiante: string (required, 1-100 chars)
+    //   - grado: string (required, 1-20 chars)
+    //   - tituloEnsayo: string (required, 1-200 chars)
+    //   - ensayoOriginal: string (required, 1-10000 chars)
+    //   - fecha: string (required, format D/M/AA)
+    //   - puntuacion: number (required, 0-100)
+    //   - mensajeMotivacion: string (optional, 1-2000 chars)
+    //   - observacionesDetalladas: list (optional, max 50 items)
+    //   - resumenCategorias: list (optional, max 10 items)
+    //   - uid: string (required, matches auth.uid)
+    //   - createdAt: timestamp (required, server-assigned)
+    //
+    // Collection: test
+    // Document ID: connection
+    // Fields: any
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidString(field, min, max) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= min && 
+             request.resource.data[field].size() <= max;
+    }
+
+    function isValidOptionalString(field, max) {
+      return !(field in request.resource.data) || (request.resource.data[field] is string && request.resource.data[field].size() <= max);
+    }
+
+    function isValidList(field, maxCount) {
+      return !(field in request.resource.data) || (request.resource.data[field] is list && request.resource.data[field].size() <= maxCount);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidEssay(data) {
+      return hasRequiredFields(['nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 'fecha', 'puntuacion', 'uid', 'createdAt']) &&
+             hasOnlyAllowedFields(['nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 'fecha', 'puntuacion', 'uid', 'createdAt', 'mensajeMotivacion', 'observacionesDetalladas', 'resumenCategorias']) &&
+             isValidString('nombreEstudiante', 1, 100) &&
+             isValidString('grado', 1, 20) &&
+             isValidString('tituloEnsayo', 1, 200) &&
+             isValidString('ensayoOriginal', 1, 10000) &&
+             isValidString('fecha', 1, 20) &&
+             data.puntuacion is number && data.puntuacion >= 0 && data.puntuacion <= 100 &&
+             data.uid == request.auth.uid &&
+             data.createdAt == request.time &&
+             isValidOptionalString('mensajeMotivacion', 2000) &&
+             isValidList('observacionesDetalladas', 50) &&
+             isValidList('resumenCategorias', 10);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /essays/{essayId} {
+      // Users can only read their own evaluations
+      allow read: if isDocOwner();
+      
+      // Users can create their own evaluations
+      allow create: if isAuthenticated() && isValidEssay(request.resource.data);
+      
+      // Evaluations are immutable once created
+      allow update, delete: if false;
+    }
+
+    match /test/connection {
+      allow read: if true; // Allow public read for connection test
+    }
+  }
+}
