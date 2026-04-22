@@ -9,9 +9,24 @@
         "grado": { "type": "string", "description": "Grade level of the student." },
         "tituloEnsayo": { "type": "string", "description": "Title of the essay." },
         "ensayoOriginal": { "type": "string", "description": "The original text written by the student." },
+        "transcripcionExacta": { "type": "string", "description": "Line-by-line faithful transcription of the original text." },
         "fecha": { "type": "string", "description": "Date of the evaluation." },
-        "puntuacion": { "type": "number", "description": "Estimated score out of 100." },
-        "mensajeMotivacion": { "type": "string", "description": "Personalized motivational message." },
+        "puntuacion": { "type": "number", "description": "Academic score in the range 0.0 - 5.0." },
+        "desglose": {
+          "type": "object",
+          "description": "Technical breakdown of scores.",
+          "properties": {
+            "tesis": { "type": "number" },
+            "argumentacion": { "type": "number" },
+            "coherencia": { "type": "number" },
+            "estructura": { "type": "number" },
+            "ortografia": { "type": "number" },
+            "pensamientoCritico": { "type": "number" }
+          }
+        },
+        "recomendaciones": { "type": "string", "description": "Concrete technical instructions for improvement." },
+        "nivelEnsayo": { "type": "string", "description": "Academic level categorization." },
+        "uid": { "type": "string", "description": "The UID of the user who owns the evaluation." },
         "observacionesDetalladas": {
           "type": "array",
           "description": "List of detailed observations."
@@ -22,7 +37,7 @@
         },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the record was created." }
       },
-      "required": ["nombreEstudiante", "grado", "tituloEnsayo", "ensayoOriginal", "fecha", "puntuacion", "createdAt"]
+      "required": ["nombreEstudiante", "grado", "tituloEnsayo", "transcripcionExacta", "fecha", "puntuacion", "desglose", "recomendaciones", "nivelEnsayo", "uid", "createdAt"]
     }
   },
   "firestore": {

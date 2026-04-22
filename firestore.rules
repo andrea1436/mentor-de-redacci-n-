@@ -46,7 +46,13 @@ service cloud.firestore {
     }
 
     function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
+      // List.hasOnly() is not supported, use size equality with hasAll
+      return request.resource.data.keys().hasAll(fields) && 
+             request.resource.data.keys().size() == fields.size();
+    }
+
+    function isVerified() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
     }
 
     function isValidString(field, min, max) {
@@ -67,19 +73,34 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidEssay(data) {
-      return hasRequiredFields(['nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 'fecha', 'puntuacion', 'uid', 'createdAt']) &&
-             hasOnlyAllowedFields(['nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 'fecha', 'puntuacion', 'uid', 'createdAt', 'mensajeMotivacion', 'observacionesDetalladas', 'resumenCategorias']) &&
+      let requiredFields = [
+        'nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 
+        'transcripcionExacta', 'fecha', 'puntuacion', 'uid', 'createdAt',
+        'desglose', 'recomendaciones', 'nivelEnsayo', 'observacionesDetalladas', 'resumenCategorias'
+      ];
+      
+      return hasRequiredFields(requiredFields) &&
+             hasOnlyAllowedFields(requiredFields) &&
              isValidString('nombreEstudiante', 1, 100) &&
              isValidString('grado', 1, 20) &&
-             isValidString('tituloEnsayo', 1, 200) &&
-             isValidString('ensayoOriginal', 1, 10000) &&
-             isValidString('fecha', 1, 20) &&
-             data.puntuacion is number && data.puntuacion >= 0 && data.puntuacion <= 100 &&
+             isValidString('tituloEnsayo', 1, 256) &&
+             isValidString('ensayoOriginal', 0, 10000) &&
+             isValidString('transcripcionExacta', 1, 10000) &&
+             isValidString('fecha', 1, 32) &&
+             data.puntuacion is number && data.puntuacion >= 0 && data.puntuacion <= 5 &&
+             data.desglose is map &&
+             data.desglose.tesis is number && data.desglose.tesis >= 0 && data.desglose.tesis <= 5 &&
+             data.desglose.argumentacion is number && data.desglose.argumentacion >= 0 && data.desglose.argumentacion <= 5 &&
+             data.desglose.coherencia is number && data.desglose.coherencia >= 0 && data.desglose.coherencia <= 5 &&
+             data.desglose.estructura is number && data.desglose.estructura >= 0 && data.desglose.estructura <= 5 &&
+             data.desglose.ortografia is number && data.desglose.ortografia >= 0 && data.desglose.ortografia <= 5 &&
+             data.desglose.pensamientoCritico is number && data.desglose.pensamientoCritico >= 0 && data.desglose.pensamientoCritico <= 5 &&
+             isValidString('recomendaciones', 1, 5000) &&
+             isValidString('nivelEnsayo', 1, 100) &&
              data.uid == request.auth.uid &&
              data.createdAt == request.time &&
-             isValidOptionalString('mensajeMotivacion', 2000) &&
-             isValidList('observacionesDetalladas', 50) &&
-             isValidList('resumenCategorias', 10);
+             isValidList('observacionesDetalladas', 100) &&
+             isValidList('resumenCategorias', 20);
     }
 
     // ===============================================================
@@ -91,7 +112,7 @@ service cloud.firestore {
       allow read: if isDocOwner();
       
       // Users can create their own evaluations
-      allow create: if isAuthenticated() && isValidEssay(request.resource.data);
+      allow create: if isVerified() && isValidEssay(request.resource.data);
       
       // Evaluations are immutable once created
       allow update, delete: if false;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from "motion/react";
 import { collection, addDoc, serverTimestamp, getDocFromServer, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -79,17 +79,30 @@ interface CategorySummary {
   cantidad: number;
 }
 
+interface ScoreBreakdown {
+  tesis: number;
+  argumentacion: number;
+  coherencia: number;
+  estructura: number;
+  ortografia: number;
+  pensamientoCritico: number;
+}
+
 interface EvaluationResult {
   id?: string;
   nombreEstudiante: string;
   tituloEnsayo: string;
   grado: string;
   fecha: string;
+  transcripcionExacta: string;
   observacionesDetalladas: ObservationItem[];
   resumenCategorias: CategorySummary[];
-  mensajeMotivacion: string;
-  puntuacion: number;
+  puntuacion: number; // Escala 0-5.0
+  desglose: ScoreBreakdown;
+  recomendaciones: string;
+  nivelEnsayo: string;
   createdAt?: any;
+  uid?: string;
 }
 
 type View = 'revision' | 'biblioteca';
@@ -104,6 +117,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [currentView, setCurrentView] = useState<View>('revision');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // File state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
   
   // Library state
   const [savedEssays, setSavedEssays] = useState<EvaluationResult[]>([]);
@@ -156,69 +174,144 @@ export default function App() {
   }, [user]);
 
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setError(null);
+
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
       await signInWithPopup(auth, provider);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Login error:", err);
-      setError("No se pudo iniciar sesión con Google.");
+      
+      if (err.code === 'auth/popup-blocked') {
+        setError("El navegador bloqueó la ventana emergente. Por favor, permite las ventanas emergentes para este sitio e intenta de nuevo.");
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError("Se canceló la solicitud de inicio de sesión previa. Intenta de nuevo.");
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        // Just ignore if they closed it manually
+      } else if (err.message?.includes('INTERNAL ASSERTION FAILED')) {
+        setError("Error interno de autenticación. Por favor, recarga la página e intenta de nuevo.");
+      } else {
+        setError("No se pudo iniciar sesión con Google. Por favor, intenta de nuevo.");
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
   const handleLogout = () => signOut(auth);
 
+  const fileToGenerativePart = async (file: File) => {
+    return new Promise<{ inlineData: { data: string, mimeType: string } }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = (reader.result as string).split(",")[1];
+        resolve({
+          inlineData: {
+            data: base64Data,
+            mimeType: file.type,
+          },
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => setFilePreview(reader.result as string);
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreview(null);
+      }
+    }
+  };
+
   const handleEvaluate = async () => {
-    if (!essay.trim() || !studentName.trim() || !grade.trim() || !user) return;
+    // Basic content validation first
+    if (!essay.trim() && !selectedFile) {
+      setError("Por favor, escribe un ensayo o sube un archivo antes de enviar.");
+      return;
+    }
+
+    // Auth validation
+    if (!user) {
+      handleLogin();
+      return;
+    }
+
+    // Metadata validation
+    if (!studentName.trim() || !grade.trim()) {
+      setError("Por favor, ingresa el nombre del estudiante y el grado.");
+      // Scroll to inputs for visibility
+      window.scrollTo({ top: 300, behavior: 'smooth' });
+      return;
+    }
     
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
+      const parts: any[] = [{ text: `Estudiante: ${studentName}\nGrado: ${grade}\nEnsayo (texto proporcionado):\n${essay}` }];
+      
+      if (selectedFile) {
+        const filePart = await fileToGenerativePart(selectedFile);
+        parts.push(filePart);
+        parts.push({ text: "Analiza también el documento o imagen adjunto para la evaluación." });
+      }
+
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
           {
             role: "user",
-            parts: [{ text: `Estudiante: ${studentName}\nGrado: ${grade}\nEnsayo:\n${essay}` }]
+            parts
           }
         ],
         config: {
-          systemInstruction: `Actúa como un Experto en Lingüística y Redacción Pedagógica, con una especialidad en el acompañamiento de estudiantes de secundaria (grado 9.º, 14-15 años) en contextos rurales. Tu tono debe ser siempre cercano, motivador y empático, celebrando la identidad cultural del estudiante mientras corriges con precisión técnica.
+          systemInstruction: `Actúa como un Evaluador Académico Formativo, especializado en el desarrollo de habilidades de escritura para estudiantes de secundaria (13-14 años). Tu tono debe ser SERIO, TÉCNICO y PRECISO, pero JUSTO y PROPOSITIVO, entendiendo que el estudiante está en una etapa de aprendizaje.
 
-OBJETIVO: Analizar ensayos o relatos y generar retroalimentación estructurada en una tabla detallada para estudiantes de grado 9.
+OBJETIVO: Calificar ensayos en una escala de 0 a 5.0, evaluando la calidad académica bajo estándares claros pero adecuados para la edad.
 
-ACCIONES:
-1. Analiza el texto meticulosamente, "letra por letra", reconociendo cada coma, punto y tilde.
-2. Identifica errores sutiles y trata de entender la intención del autor si la redacción es confusa.
-3. Clasifica CADA observación en una de estas 6 categorías EXACTAS:
-   - Aspectos ortográficos
-   - Ortografía y puntuación
-   - Estructura del ensayo
-   - Uso de conectores
-   - Claridad de ideas
-   - Sustentación de argumentos
+CONTEXTO DEL TRABAJO:
+- Se espera un ensayo de aproximadamente una página (32 líneas). Ten esto en cuenta al evaluar la profundidad y el desarrollo de ideas.
 
-REGLAS PARA LA TABLA:
-- Párrafo: Indica "Párrafo X" o "Línea X".
-- Fragmento: Cita el texto original EXACTO entre comillas.
-- Explicación: Explica el "por qué" pedagógico incluyendo la regla gramatical u ortográfica. Usa un lenguaje sencillo y amable.
-- Tono: NUNCA uses frases negativas como "cometiste un error"; usa "aquí hay una oportunidad de mejorar". Sé didáctico, nunca condescendiente.
+ACCIÓN CRÍTICA (TRANSCRIPCIÓN): 
+- Si se proporciona una imagen o PDF, transcribe EXACTAMENTE lo que está escrito línea por línea, sin ninguna corrección ("sic").
 
-MENSAJE DE MOTIVACIÓN:
-- Debe tener entre 3 y 5 oraciones.
-- Debe reconocer un aspecto positivo REAL y ESPECÍFICO del texto.
-- Debe animar al estudiante a mejorar basándose en los hallazgos.
+CRITERIOS DE EVALUACIÓN (Equilibrio entre rigor y pedagogía):
+1. Tesis (1.0 pto): ¿Existe una idea central clara? Penaliza si es inexistente o muy vaga.
+2. Argumentación (1.0 pto): ¿Desarrolla sus ideas con lógica? Premia la conexión de ideas sobre la complejidad extrema.
+3. Coherencia y Cohesión (1.0 pto): Uso de conectores y orden.
+4. Estructura (1.0 pto): Presencia de Introducción, Desarrollo y Conclusión.
+5. Ortografía y Gramática (1.0 pto): Identifica errores pero ofrece la regla para que aprenda.
+
+REGLAS DE CALIFICACIÓN:
+- Sé exigente con la estructura y la lógica, pero valora la originalidad y el pensamiento crítico propio de un adolescente.
+- No regales nota, pero asegúrate de que el estudiante entienda CÓMO llegar al 5.0.
+- Puntuación máxima: 5.0.
 
 SALIDA (JSON):
-- nombreEstudiante: El nombre del estudiante.
-- tituloEnsayo: Título creativo basado en el contenido.
-- grado: El grado (9.º).
-- fecha: Fecha actual (D/M/AA).
-- observacionesDetalladas: Lista de objetos con 'num', 'parrafo', 'fragmento', 'categoria', 'errorIdentificado', 'explicacion', 'correccionSugerida'.
-- resumenCategorias: Lista que DEBE incluir las 6 categorías obligatorias mencionadas arriba, cada una con su respectivo conteo (usa 0 si no hay observaciones en esa categoría).
-- mensajeMotivacion: El mensaje de 3-5 oraciones.
-- puntuacion: Del 1 al 100.`,
+- nombreEstudiante: Nombre completo.
+- tituloEnsayo: Título creativo o del original.
+- grado: El grado del estudiante.
+- fecha: Fecha actual.
+- transcripcionExacta: Transcripción fiel línea por línea.
+- observacionesDetalladas: Lista de errores específicos e indicaciones de mejora enfocadas en el aprendizaje.
+- resumenCategorias: Resumen por categorías de errores.
+- puntuacion: Calificación final de 0 a 5.0 (un solo decimal).
+- desglose: Objeto con notas (0-1.0 para cada criterio, sumando hasta 5.0): tesis, argumentacion, coherencia, estructura, ortografia, pensamientoCritico (este último se suma a la nota final para reconocer excelencia, pero el total no debe exceder 5.0).
+- recomendaciones: Instrucciones técnicas claras y motivadoras para mejorar.
+- nivelEnsayo: Una de estas: "Necesita Refuerzo" (0-2.9), "Aceptable" (3.0-3.7), "Buen Nivel" (3.8-4.4), "Excelente" (4.5-5.0).`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -227,6 +320,7 @@ SALIDA (JSON):
               tituloEnsayo: { type: Type.STRING },
               grado: { type: Type.STRING },
               fecha: { type: Type.STRING },
+              transcripcionExacta: { type: Type.STRING },
               observacionesDetalladas: {
                 type: Type.ARRAY,
                 items: {
@@ -254,10 +348,23 @@ SALIDA (JSON):
                   required: ["categoria", "cantidad"]
                 }
               },
-              mensajeMotivacion: { type: Type.STRING },
-              puntuacion: { type: Type.NUMBER }
+              puntuacion: { type: Type.NUMBER },
+              desglose: {
+                type: Type.OBJECT,
+                properties: {
+                  tesis: { type: Type.NUMBER },
+                  argumentacion: { type: Type.NUMBER },
+                  coherencia: { type: Type.NUMBER },
+                  estructura: { type: Type.NUMBER },
+                  ortografia: { type: Type.NUMBER },
+                  pensamientoCritico: { type: Type.NUMBER }
+                },
+                required: ["tesis", "argumentacion", "coherencia", "estructura", "ortografia", "pensamientoCritico"]
+              },
+              recomendaciones: { type: Type.STRING },
+              nivelEnsayo: { type: Type.STRING }
             },
-            required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "observacionesDetalladas", "resumenCategorias", "mensajeMotivacion", "puntuacion"]
+            required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "puntuacion", "desglose", "recomendaciones", "nivelEnsayo"]
           }
         }
       });
@@ -269,19 +376,22 @@ SALIDA (JSON):
 
         // Save to Firestore
         try {
-          await addDoc(collection(db, 'essays'), {
+          const docRef = await addDoc(collection(db, 'essays'), {
             ...parsedResult,
-            ensayoOriginal: essay,
+            ensayoOriginal: essay || "(Evaluación basada en archivo adjunto)",
             uid: auth.currentUser?.uid,
             createdAt: serverTimestamp()
           });
+          console.log("Evaluación guardada con ID:", docRef.id);
         } catch (fsError) {
           handleFirestoreError(fsError, OperationType.WRITE, 'essays');
         }
+      } else {
+        throw new Error("No se recibió respuesta del mentor.");
       }
     } catch (err) {
       console.error("Error evaluating essay:", err);
-      setError("Lo siento, hubo un problema al evaluar tu ensayo o guardar los datos. Por favor, intenta de nuevo.");
+      setError("Lo siento, hubo un problema al evaluar tu ensayo o guardar los datos. Por favor, intenta de nuevo o revisa tu conexión.");
     } finally {
       setLoading(false);
     }
@@ -309,14 +419,12 @@ SALIDA (JSON):
             >
               Biblioteca
             </button>
-            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-on-background/60 hover:text-primary transition-colors" href="#">Lienzo</a>
             <button 
               onClick={() => { setCurrentView('revision'); setResult(null); }}
               className={`font-label text-[13px] font-semibold uppercase tracking-wider transition-colors ${currentView === 'revision' ? 'text-primary font-bold' : 'text-on-background/60 hover:text-primary'}`}
             >
-              Revisión
+              Mentor
             </button>
-            <a className="font-label text-[13px] font-semibold uppercase tracking-wider text-on-background/60 hover:text-primary transition-colors" href="#">Mentor</a>
           </nav>
           
           {user ? (
@@ -413,27 +521,90 @@ SALIDA (JSON):
                   </div>
 
                   <h2 className="font-headline text-2xl font-bold mb-6 text-primary">Comparte tu historia</h2>
-                  <textarea
-                    value={essay}
-                    onChange={(e) => setEssay(e.target.value)}
-                    placeholder="Escribe aquí tu ensayo sobre tradiciones, relatos locales o identidad cultural..."
-                    className="input-field min-h-[300px] mb-6"
-                    disabled={loading}
-                  />
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
+                    <div className="lg:col-span-2">
+                       <label className="block font-label text-xs font-bold uppercase tracking-widest text-outline mb-2">Escribe tu ensayo</label>
+                       <textarea
+                        value={essay}
+                        onChange={(e) => setEssay(e.target.value)}
+                        placeholder="Escribe aquí tu ensayo sobre tradiciones, relatos locales o identidad cultural..."
+                        className="input-field min-h-[300px]"
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="space-y-6">
+                      <label className="block font-label text-xs font-bold uppercase tracking-widest text-outline mb-2">O sube un archivo</label>
+                      <div 
+                        className={`relative border-2 border-dashed rounded-xl p-8 transition-all flex flex-col items-center justify-center text-center cursor-pointer group ${selectedFile ? 'border-primary/50 bg-primary/5' : 'border-outline-variant/30 hover:border-primary/30 hover:bg-surface-container-low'}`}
+                        onClick={() => document.getElementById('file-upload')?.click()}
+                      >
+                        <input 
+                          type="file" 
+                          id="file-upload" 
+                          className="hidden" 
+                          accept="application/pdf,image/*"
+                          onChange={handleFileChange}
+                        />
+                        {filePreview ? (
+                          <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-outline-variant/20 mb-4">
+                            <img src={filePreview} alt="Vista previa" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-3xl">change_circle</span>
+                            </div>
+                          </div>
+                        ) : selectedFile ? (
+                          <div className="mb-4">
+                            <span className="material-symbols-outlined text-5xl text-primary mb-2">description</span>
+                            <p className="font-label text-xs font-bold text-primary truncate max-w-[150px]">{selectedFile.name}</p>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-5xl text-outline/40 mb-4 group-hover:scale-110 transition-transform">add_a_photo</span>
+                            <p className="font-label text-sm text-outline font-medium">Sube una foto de tu cuaderno o un archivo PDF</p>
+                            <p className="font-label text-[10px] text-outline/60 mt-2">Formatos: JPG, PNG, PDF</p>
+                          </>
+                        )}
+                        
+                        {selectedFile && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFile(null);
+                              setFilePreview(null);
+                            }}
+                            className="mt-2 text-[10px] font-bold uppercase tracking-widest text-error hover:underline"
+                          >
+                            Eliminar archivo
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="bg-surface-container-high/50 p-4 rounded-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="material-symbols-outlined text-primary text-sm">info</span>
+                          <span className="font-label text-[10px] font-bold uppercase tracking-widest text-primary">Consejo de mentor</span>
+                        </div>
+                        <p className="font-body text-[11px] text-on-surface-variant leading-relaxed italic">
+                          "Si subes una foto, asegúrate de que haya buena luz y que la letra sea clara para poder ayudarte mejor."
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex justify-end">
                     <button
                       onClick={handleEvaluate}
-                      disabled={loading || !essay.trim() || !studentName.trim() || !grade.trim() || !user}
-                      className="px-8 py-3 satin-gradient text-on-primary rounded-lg font-label font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
+                      disabled={loading || isLoggingIn || (!essay.trim() && !selectedFile)}
+                      className="px-8 py-3 satin-gradient text-on-primary rounded-lg font-label font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loading ? (
+                      {loading || isLoggingIn ? (
                         <>
                           <span className="material-symbols-outlined animate-spin">sync</span>
-                          Analizando...
+                          {isLoggingIn ? "Iniciando sesión..." : "Analizando..."}
                         </>
                       ) : (
                         <>
-                          <span className="material-symbols-outlined">send</span>
+                          <span className="material-symbols-outlined">{user ? 'send' : 'login'}</span>
                           {user ? "Enviar para revisión" : "Inicia sesión para enviar"}
                         </>
                       )}
@@ -479,6 +650,23 @@ SALIDA (JSON):
                       <p><strong>Grado:</strong> {result.grado}</p>
                       <p><strong>Fecha:</strong> {result.fecha}</p>
                     </div>
+                  </section>
+
+                  {/* Original Transcription */}
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-3 px-2">
+                      <span className="material-symbols-outlined text-primary">edit_note</span>
+                      <h3 className="font-headline text-xl font-bold tracking-tight">Transcripción Exacta (Fiel al original)</h3>
+                    </div>
+                    <div className="bg-surface-container-lowest p-8 rounded-xl border border-outline-variant/20 relative shadow-inner">
+                      <div className="absolute top-4 right-4 text-[10px] uppercase font-label font-bold text-outline opacity-40">Copia fiel (sic)</div>
+                      <pre className="font-mono text-sm text-on-surface whitespace-pre-wrap leading-relaxed">
+                        {result.transcripcionExacta || "No se generó transcripción."}
+                      </pre>
+                    </div>
+                    <p className="text-[10px] font-label text-outline italic px-2">
+                      * Esta transcripción mantiene todos los errores originales del texto para su posterior análisis pedagógico.
+                    </p>
                   </section>
 
                   {/* Detailed Observations Table */}
@@ -529,51 +717,79 @@ SALIDA (JSON):
                     </div>
                   </section>
 
-                  {/* Summary Table */}
-                  <section className="max-w-md mx-auto space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                      <h3 className="font-headline text-xl font-bold tracking-tight">Resumen de observaciones</h3>
+                  {/* Summary Table replaced by Score Breakdown */}
+                  <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between px-2">
+                        <h3 className="font-headline text-xl font-bold tracking-tight">Desglose del Puntaje</h3>
+                      </div>
+                      <div className="bg-surface-container rounded-xl border border-outline-variant/10 p-6 space-y-4">
+                        {result.desglose ? [
+                          { label: 'Tesis', score: result.desglose.tesis, max: 1 },
+                          { label: 'Argumentación', score: result.desglose.argumentacion, max: 1 },
+                          { label: 'Coherencia y Cohesión', score: result.desglose.coherencia, max: 1 },
+                          { label: 'Estructura', score: result.desglose.estructura, max: 1 },
+                          { label: 'Ortografía y Gramática', score: result.desglose.ortografia, max: 1 },
+                        ].map((item, idx) => (
+                          <div key={idx} className="space-y-1">
+                            <div className="flex justify-between text-xs font-label uppercase tracking-widest text-outline">
+                              <span>{item.label}</span>
+                              <span className="font-bold text-primary">{item.score.toFixed(1)} / {item.max.toFixed(1)}</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(item.score / item.max) * 100}%` }}
+                                transition={{ duration: 1, delay: idx * 0.1 }}
+                                className="h-full satin-gradient"
+                              />
+                            </div>
+                          </div>
+                        )) : (
+                          <p className="text-sm font-body text-outline italic text-center py-4">Desglose no disponible para evaluaciones antiguas.</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="overflow-hidden bg-surface-container rounded-xl border border-outline-variant/10">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-surface-container-high">
-                            <th className="p-4 font-label text-xs font-bold uppercase tracking-widest text-outline">Categoría</th>
-                            <th className="p-4 font-label text-xs font-bold uppercase tracking-widest text-outline text-center">Cantidad</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-outline-variant/20">
-                          {result.resumenCategorias.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-surface-container-low transition-colors">
-                              <td className="p-4 font-body text-sm text-on-surface">{item.categoria}</td>
-                              <td className="p-4 font-label text-sm text-on-surface text-center font-bold">{item.cantidad}</td>
+
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between px-2">
+                        <h3 className="font-headline text-xl font-bold tracking-tight">Resumen de Falencias</h3>
+                      </div>
+                      <div className="overflow-hidden bg-surface-container rounded-xl border border-outline-variant/10">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-surface-container-high">
+                              <th className="p-4 font-label text-xs font-bold uppercase tracking-widest text-outline">Categoría</th>
+                              <th className="p-4 font-label text-xs font-bold uppercase tracking-widest text-outline text-center">Cant.</th>
                             </tr>
-                          ))}
-                          <tr className="bg-primary/5">
-                            <td className="p-4 font-label text-sm text-primary font-bold">TOTAL</td>
-                            <td className="p-4 font-label text-sm text-primary text-center font-bold">
-                              {result.resumenCategorias.reduce((acc, curr) => acc + curr.cantidad, 0)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-outline-variant/20">
+                            {result.resumenCategorias.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-surface-container-low transition-colors">
+                                <td className="p-4 font-body text-sm text-on-surface">{item.categoria}</td>
+                                <td className="p-4 font-label text-sm text-on-surface text-center font-bold">{item.cantidad}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </section>
 
-                  {/* Motivation Message */}
+                  {/* Motivation Message replaced by Recomendaciones */}
                   <section>
                     <div className="bg-surface-container-lowest canvas-shadow rounded-xl p-8 md:p-12 relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full satin-gradient"></div>
                       <div className="flex items-start gap-6">
                         <div className="hidden sm:block">
                           <div className="w-16 h-16 rounded-full bg-secondary-container flex items-center justify-center">
-                            <span className="material-symbols-outlined text-secondary text-3xl">rocket_launch</span>
+                            <span className="material-symbols-outlined text-secondary text-3xl">psychology</span>
                           </div>
                         </div>
                         <div className="flex-1">
-                          <h2 className="font-headline text-2xl font-bold mb-4 text-primary">💪 Mensaje de motivación</h2>
-                          <div className="space-y-4 text-lg leading-relaxed text-on-surface italic">
-                            <p>{result.mensajeMotivacion}</p>
+                          <h2 className="font-headline text-2xl font-bold mb-4 text-primary">📝 Recomendaciones de mejora</h2>
+                          <div className="space-y-4 text-lg leading-relaxed text-on-surface">
+                            <p className="whitespace-pre-wrap">{result.recomendaciones}</p>
                           </div>
                         </div>
                       </div>
@@ -582,12 +798,10 @@ SALIDA (JSON):
 
                   {/* Score and Reset */}
                   <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2 bg-surface-container-low p-8 rounded-xl border border-outline-variant/10 flex flex-col justify-between">
-                      <div>
-                        <h4 className="font-headline text-xl font-bold mb-2">¿Listo para la versión final?</h4>
-                        <p className="font-body text-on-surface-variant italic mb-6">Aplica estos cambios y solicita una nueva revisión de estilo.</p>
-                      </div>
-                      <div className="flex flex-wrap gap-4">
+                    <div className="md:col-span-2 bg-surface-container-low p-8 rounded-xl border border-outline-variant/10 flex items-center justify-between gap-6">
+                      <div className="flex-1">
+                        <h4 className="font-headline text-xl font-bold mb-2">Nivel del ensayo: <span className="text-secondary">{result.nivelEnsayo}</span></h4>
+                        <p className="font-body text-on-surface-variant text-sm italic mb-4">Evaluación bajo estándares académicos rigurosos.</p>
                         <button 
                           onClick={() => {
                             setResult(null);
@@ -600,15 +814,20 @@ SALIDA (JSON):
                           Nueva Revisión
                         </button>
                       </div>
+                      <div className="hidden sm:block w-px h-24 bg-outline-variant/20"></div>
+                      <div className="hidden sm:flex flex-col items-center gap-2 px-6">
+                        <span className="material-symbols-outlined text-outline text-4xl">inventory_2</span>
+                        <span className="font-label text-[10px] text-outline font-bold uppercase tracking-widest">Registrado</span>
+                      </div>
                     </div>
                     <div className="bg-primary-container p-8 rounded-xl text-on-primary-container relative overflow-hidden flex flex-col justify-center">
                       <div className="absolute -right-4 -bottom-4 opacity-10">
-                        <span className="material-symbols-outlined text-[120px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_stories</span>
+                        <span className="material-symbols-outlined text-[120px]" style={{ fontVariationSettings: "'FILL' 1" }}>fact_check</span>
                       </div>
-                      <p className="font-label text-xs font-bold uppercase tracking-[0.3em] mb-4">Puntuación Estimada</p>
+                      <p className="font-label text-xs font-bold uppercase tracking-[0.3em] mb-4">Puntaje Final</p>
                       <div className="flex items-baseline gap-2">
-                        <span className="font-headline text-6xl font-extrabold tracking-tighter">{result.puntuacion}</span>
-                        <span className="font-headline text-2xl opacity-60">/ 100</span>
+                        <span className="font-headline text-7xl font-extrabold tracking-tighter">{result.puntuacion.toFixed(1)}</span>
+                        <span className="font-headline text-2xl opacity-60">/ 5.0</span>
                       </div>
                     </div>
                   </section>
@@ -657,7 +876,9 @@ SALIDA (JSON):
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
-                        <span className="material-symbols-outlined">description</span>
+                        <span className="material-symbols-outlined">
+                          {item.transcripcionExacta ? 'document_scanner' : 'description'}
+                        </span>
                       </div>
                       <div>
                         <h4 className="font-headline font-bold text-lg text-on-background group-hover:text-primary transition-colors">"{item.tituloEnsayo}"</h4>
@@ -671,7 +892,7 @@ SALIDA (JSON):
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <p className="font-label text-[10px] font-bold uppercase tracking-widest text-outline mb-1">Puntuación</p>
-                        <p className="font-headline text-2xl font-black text-primary">{item.puntuacion}<span className="text-xs opacity-40">/100</span></p>
+                        <p className="font-headline text-2xl font-black text-primary">{item.puntuacion.toFixed(item.puntuacion <= 5 ? 1 : 0)}<span className="text-xs opacity-40">/{item.puntuacion <= 5 ? '5.0' : '100'}</span></p>
                       </div>
                       <span className="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform">chevron_right</span>
                     </div>
@@ -698,21 +919,13 @@ SALIDA (JSON):
           <span className="material-symbols-outlined" style={{ fontVariationSettings: currentView === 'biblioteca' ? "'FILL' 1" : "" }}>auto_stories</span>
           <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Biblioteca</span>
         </button>
-        <a className="flex flex-col items-center justify-center text-on-background/50" href="#">
-          <span className="material-symbols-outlined">edit_note</span>
-          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Lienzo</span>
-        </a>
         <button 
           onClick={() => { setCurrentView('revision'); setResult(null); }}
           className={`flex flex-col items-center justify-center ${currentView === 'revision' ? 'text-primary' : 'text-on-background/50'}`}
         >
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: currentView === 'revision' ? "'FILL' 1" : "" }}>forum</span>
-          <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Revisión</span>
-        </button>
-        <a className="flex flex-col items-center justify-center text-on-background/50" href="#">
-          <span className="material-symbols-outlined">school</span>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: currentView === 'revision' ? "'FILL' 1" : "" }}>school</span>
           <span className="font-label text-[11px] font-semibold uppercase tracking-wider mt-1">Mentor</span>
-        </a>
+        </button>
       </nav>
     </div>
   );

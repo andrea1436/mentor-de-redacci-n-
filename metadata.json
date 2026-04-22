@@ -1,5 +1,5 @@
 {
-  "name": "Escriba: Mentor de Redacción Rural",
-  "description": "Una herramienta pedagógica para estudiantes de la Institución Educativa Retiro de los Indios (Cereté, Córdoba) para mejorar sus ensayos sobre identidad cultural y tradiciones locales.",
+  "name": "Escriba: Evaluador Académico Formativo",
+  "description": "Herramienta de evaluación académica para estudiantes de secundaria (13-14 años). Califica bajo estándares técnicos adecuados para la edad, enfocándose en la estructura, lógica y transcripción fiel del original.",
   "requestFramePermissions": []
 }
