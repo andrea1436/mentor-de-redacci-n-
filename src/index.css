@@ -1,51 +1,39 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-headline: "Manrope", sans-serif;
-  --font-body: "Noto Serif", serif;
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
   --font-label: "Inter", sans-serif;
   
-  --color-primary: #0f426f;
-  --color-on-primary: #ffffff;
-  --color-primary-container: #2e5a88;
-  --color-on-primary-container: #aed1ff;
+  --color-primary: #00e5ff;
+  --color-secondary: #f7d800;
+  --color-accent: #ff5722;
   
-  --color-secondary: #2c694e;
-  --color-on-secondary: #ffffff;
-  --color-secondary-container: #b0f1cd;
-  --color-on-secondary-container: #327053;
+  --color-background: #f8fafc;
+  --color-on-background: #0f172a;
   
-  --color-tertiary: #553c19;
-  --color-tertiary-container: #6f532e;
-  --color-on-tertiary-container: #efc89a;
-  
-  --color-background: #fcf9f4;
-  --color-on-background: #1c1c19;
-  
-  --color-surface: #fcf9f4;
-  --color-on-surface: #1c1c19;
-  --color-surface-variant: #e5e2dd;
-  --color-on-surface-variant: #42474f;
+  --color-surface: #ffffff;
+  --color-on-surface: #0f172a;
+  --color-surface-variant: #f1f5f9;
+  --color-on-surface-variant: #475569;
   
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f6f3ee;
-  --color-surface-container: #f0ede9;
-  --color-surface-container-high: #ebe8e3;
-  --color-surface-container-highest: #e5e2dd;
+  --color-surface-container-low: #f8fafc;
+  --color-surface-container: #f1f5f9;
+  --color-surface-container-high: #e2e8f0;
+  --color-surface-container-highest: #cbd5e1;
   
-  --color-outline: #737780;
-  --color-outline-variant: #c2c7d0;
-  --color-error: #ba1a1a;
-  
-  --radius-full: 0.75rem;
-  --radius-xl: 0.5rem;
-  --radius-lg: 0.25rem;
+  --color-outline: #94a3b8;
+  --color-outline-variant: #e2e8f0;
+  --color-error: #ef4444;
 }
 
-body {
-  @apply bg-background text-on-background font-body antialiased;
-  min-height: max(884px, 100dvh);
+@layer base {
+  body {
+    @apply bg-background text-on-background antialiased selection:bg-primary/20;
+    min-height: 100vh;
+  }
 }
 
 .material-symbols-outlined {
@@ -53,28 +41,39 @@ body {
 }
 
 .canvas-shadow {
-  box-shadow: 0px 12px 32px rgba(28, 28, 25, 0.06);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
 .satin-gradient {
-  background: linear-gradient(135deg, #0f426f 0%, #2e5a88 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 
 .input-field {
-  @apply w-full bg-white border border-outline-variant/30 rounded-xl p-4 font-body text-lg focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all;
+  @apply w-full bg-white border border-outline-variant rounded-xl px-5 py-3 
+         focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none 
+         transition-all placeholder:text-slate-400 font-body text-sm;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c2c7d0;
+  background: #e2e8f0;
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #737780;
+  background: #cbd5e1;
 }
