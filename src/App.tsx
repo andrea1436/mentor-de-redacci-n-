@@ -6,9 +6,12 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from "motion/react";
+import { FileText, BookOpen, Brain, ImagePlus, User as UserIcon, LogOut, ChevronRight, Sparkles, SpellCheck, Network, Layers, Link as LinkIcon, Eye, HelpCircle, History } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, getDocFromServer, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
+import logo from './assets/escudo.png';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "" });
@@ -349,7 +352,7 @@ export default function App() {
           <div className="flex justify-center items-center">
             <div className="h-14 w-auto flex items-center justify-center cursor-default transition-all duration-500 hover:scale-110 active:scale-95">
               <img 
-                src="/escudo.png" 
+                src={logo} 
                 alt="Logo" 
                 className="h-full w-auto object-contain drop-shadow-xl"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }}
@@ -360,23 +363,28 @@ export default function App() {
             <nav className="hidden md:flex gap-10">
               <button 
                 onClick={() => setCurrentView('biblioteca')} 
-                className={`transition-all duration-300 relative group ${currentView === 'biblioteca' ? 'text-primary' : 'text-slate-400 hover:text-slate-900'}`}
+                className={`transition-all duration-300 relative group flex items-center gap-2 ${currentView === 'biblioteca' ? 'text-primary' : 'text-slate-400 hover:text-slate-900'}`}
               >
-                Biblioteca
+                <BookOpen className="w-4 h-4" />
+                <span>Biblioteca</span>
                 {currentView === 'biblioteca' && <motion.div layoutId="nav-glow" className="absolute -bottom-2 left-0 w-full h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(0,229,255,0.6)]" />}
               </button>
               <button 
                 onClick={() => { setCurrentView('revision'); setResult(null); }} 
-                className={`transition-all duration-300 relative group ${currentView === 'revision' ? 'text-primary' : 'text-slate-400 hover:text-slate-900'}`}
+                className={`transition-all duration-300 relative group flex items-center gap-2 ${currentView === 'revision' ? 'text-primary' : 'text-slate-400 hover:text-slate-900'}`}
               >
-                Mentor
+                <Brain className="w-4 h-4" />
+                <span>Mentor</span>
                 {currentView === 'revision' && <motion.div layoutId="nav-glow" className="absolute -bottom-2 left-0 w-full h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(0,229,255,0.6)]" />}
               </button>
             </nav>
             {user ? (
                <div className="flex items-center gap-4 border-l pl-8 border-slate-200">
                   <img src={user.photoURL || ""} className="w-8 h-8 rounded-full border-2 border-primary/20 shadow-sm" alt="User" />
-                  <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors lowercase font-medium tracking-normal">salir</button>
+                  <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors lowercase font-medium tracking-normal flex items-center gap-1">
+                    <LogOut className="w-3 h-3" />
+                    <span>salir</span>
+                  </button>
                </div>
             ) : (
                <button onClick={handleLogin} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all">Entrar</button>
@@ -418,11 +426,24 @@ export default function App() {
                       <textarea value={essay} onChange={e => setEssay(e.target.value)} className="input-field min-h-[400px]" placeholder="Escribe tu ensayo aquí..." />
                    </div>
                    <div className="space-y-8">
-                      <div className="border-2 border-dashed rounded-3xl p-10 text-center cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => document.getElementById('f')?.click()}>
+                      <div className="border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center cursor-pointer hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-4" onClick={() => document.getElementById('f')?.click()}>
                          <input type="file" id="f" className="hidden" onChange={handleFileChange} />
-                         {selectedFile ? <p className="font-label text-xs font-bold text-slate-900">{selectedFile.name}</p> : <span className="material-symbols-outlined text-5xl text-slate-200">add_photo_alternate</span>}
+                         {selectedFile ? (
+                           <div className="flex flex-col items-center gap-2">
+                             <FileText className="w-10 h-10 text-primary" />
+                             <p className="font-label text-xs font-bold text-slate-900 truncate max-w-[150px]">{selectedFile.name}</p>
+                           </div>
+                         ) : (
+                           <>
+                             <ImagePlus className="w-12 h-12 text-slate-300 mb-2" />
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Adjuntar Foto o PDF</p>
+                           </>
+                         )}
                       </div>
-                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 italic text-xs text-slate-500">
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 italic text-xs text-slate-500 relative">
+                         <div className="absolute top-0 right-0 p-2 opacity-10">
+                           <Sparkles className="w-8 h-8" />
+                         </div>
                          "La claridad en tu expresión es el reflejo de la claridad en tu pensamiento."
                       </div>
                    </div>
@@ -496,7 +517,7 @@ export default function App() {
 
                      <div className="space-y-8">
                         <div className="bg-white border p-10 rounded-[3rem] shadow-sm relative overflow-hidden">
-                           <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary mb-6"><span className="material-symbols-outlined">psychology</span></div>
+                           <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary mb-6"><Brain className="w-6 h-6" /></div>
                            <h4 className="font-headline font-bold text-2xl text-slate-900 mb-4">Recomendaciones</h4>
                            <p className="font-body text-slate-600 leading-relaxed italic">{result.recomendaciones}</p>
                         </div>
@@ -530,13 +551,11 @@ export default function App() {
                            >
                               <div className="flex items-center gap-4 mb-6">
                                  <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-primary group-hover:bg-slate-900 group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined">
-                                       {key === 'ortografia_letras' ? 'spellcheck' : 
-                                        key === 'puntuacion' ? 'edit_attributes' :
-                                        key === 'estructura' ? 'account_tree' :
-                                        key === 'conectores' ? 'link' :
-                                        key === 'claridad' ? 'visibility' : 'psychology'}
-                                    </span>
+                                    {key === 'ortografia_letras' ? <SpellCheck className="w-6 h-6" /> : 
+                                     key === 'puntuacion' ? <SpellCheck className="w-6 h-6" /> :
+                                     key === 'estructura' ? <Layers className="w-6 h-6" /> :
+                                     key === 'conectores' ? <LinkIcon className="w-6 h-6" /> :
+                                     key === 'claridad' ? <Eye className="w-6 h-6" /> : <Brain className="w-6 h-6" />}
                                  </div>
                                  <h4 className="font-headline font-bold text-xl text-slate-900 uppercase tracking-tight">
                                     {key.replace('_', ' ').replace('ortografia letras', 'Ortografía').replace('puntuacion', 'Puntuación').replace('sustentacion', 'Argumentos')}
@@ -637,7 +656,7 @@ export default function App() {
                {filteredEssays.map((e, i) => (
                   <div key={i} onClick={() => { setResult(e); setCurrentView('revision'); }} className="bg-white border p-10 rounded-[3rem] shadow-sm hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden">
                      <div className="flex justify-between items-start mb-6">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-slate-900 transition-colors"><span className="material-symbols-outlined">description</span></div>
+                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-slate-900 transition-colors"><FileText className="w-6 h-6" /></div>
                         <p className="font-headline text-2xl font-black text-slate-900 group-hover:text-primary transition-colors uppercase tracking-tight">{e.desempeñoGlobal}</p>
                      </div>
                      <p className="font-label text-[8px] font-bold text-primary uppercase tracking-widest mb-1">{e.grado}</p>
@@ -657,7 +676,7 @@ export default function App() {
           onClick={() => setCurrentView('biblioteca')} 
           className={`flex flex-col items-center gap-1 transition-all ${currentView === 'biblioteca' ? 'text-primary scale-110' : 'text-slate-300'}`}
         >
-          <span className="material-symbols-outlined">auto_stories</span>
+          <BookOpen className="w-5 h-5" />
           <span className="font-label text-[8px] font-bold uppercase tracking-widest">Librería</span>
         </button>
         <button 
@@ -665,7 +684,7 @@ export default function App() {
           className={`flex flex-col items-center gap-1 transition-all ${currentView === 'revision' ? 'text-primary scale-110' : 'text-slate-300'}`}
         >
           <div className="w-12 h-12 -mt-8 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/20">
-            <span className="material-symbols-outlined">edit_square</span>
+            <FileText className="w-6 h-6" />
           </div>
           <span className="font-label text-[8px] font-bold uppercase tracking-widest text-slate-400">Mentor</span>
         </button>
@@ -673,7 +692,7 @@ export default function App() {
           onClick={() => setCurrentView('biblioteca')} 
           className="flex flex-col items-center gap-1 text-slate-300"
         >
-          <span className="material-symbols-outlined">person</span>
+          <UserIcon className="w-5 h-5" />
           <span className="font-label text-[8px] font-bold uppercase tracking-widest">Perfil</span>
         </button>
       </nav>
