@@ -12,8 +12,6 @@ import { db, auth } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
-import logo from './assets/escudo.png';
-
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "" });
 
@@ -353,7 +351,7 @@ export default function App() {
           <div className="flex justify-center items-center">
             <div className="h-16 w-auto flex items-center justify-center cursor-default transition-all duration-500 hover:scale-105 active:scale-95 bg-white/40 backdrop-blur-sm rounded-2xl px-4 py-2 border border-white/50 shadow-sm">
               <img 
-                src={logo} 
+                src="/escudo.png" 
                 alt="Logo I.E. Retiro de los Indios" 
                 className="h-full w-auto object-contain drop-shadow-md"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }}
