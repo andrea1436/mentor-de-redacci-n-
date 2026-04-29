@@ -11,7 +11,6 @@ import { collection, addDoc, serverTimestamp, getDocFromServer, doc, query, wher
 import { db, auth } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import logo from './assets/escudo.png';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "" });
@@ -352,7 +351,7 @@ export default function App() {
           <div className="flex justify-center items-center">
             <div className="h-14 w-auto flex items-center justify-center cursor-default transition-all duration-500 hover:scale-110 active:scale-95">
               <img 
-                src={logo} 
+                src="/escudo.png" 
                 alt="Logo" 
                 className="h-full w-auto object-contain drop-shadow-xl"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }}
@@ -585,7 +584,7 @@ export default function App() {
 
                                  <div className="bg-primary/5 p-5 rounded-2xl border border-primary/10">
                                     <div className="flex items-center gap-2 mb-2 text-primary">
-                                       <span className="material-symbols-outlined text-sm">auto_fix_high</span>
+                                       <Sparkles className="w-3 h-3" />
                                        <p className="font-label text-[10px] font-bold uppercase tracking-widest">Sugerencia de Mejora</p>
                                     </div>
                                     <p className="font-headline font-bold text-sm text-slate-900 leading-tight">
