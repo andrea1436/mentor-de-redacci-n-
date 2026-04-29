@@ -351,7 +351,7 @@ export default function App() {
           <div className="flex justify-center items-center">
             <div className="h-16 w-auto flex items-center justify-center cursor-default transition-all duration-500 hover:scale-105 active:scale-95 bg-white/40 backdrop-blur-sm rounded-2xl px-4 py-2 border border-white/50 shadow-sm">
               <img 
-                src="/escudo.png" 
+                src="/escudo.png?v=1.0.1" 
                 alt="Logo I.E. Retiro de los Indios" 
                 className="h-full w-auto object-contain drop-shadow-md"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }}
