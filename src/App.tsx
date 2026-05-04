@@ -320,6 +320,15 @@ export default function App() {
       });
 
       const parsedResult: EvaluationResult = JSON.parse(response.text);
+      
+      // Override AI generated date with real upload date
+      const uploadDate = new Intl.DateTimeFormat('es-CO', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      }).format(new Date());
+      
+      parsedResult.fecha = uploadDate;
       setResult(parsedResult);
 
       // Mapping qualitative performance to numeric scores for database stability
@@ -339,6 +348,7 @@ export default function App() {
 
       await addDoc(collection(db, 'essays'), {
         ...parsedResult,
+        fecha: uploadDate, // Explicitly set it here as well
         ensayoOriginal: essay,
         puntuacion: numericPuntuacion,
         uid: user.uid,
@@ -445,15 +455,26 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mb-10">
                    <div className="lg:col-span-2">
-                      <textarea value={essay} onChange={e => setEssay(e.target.value)} className="input-field min-h-[400px]" placeholder="Escribe tu ensayo aquí..." />
+                      <textarea 
+                        id="essay-textarea"
+                        value={essay} 
+                        onChange={e => setEssay(e.target.value)} 
+                        className="input-field min-h-[400px]" 
+                        placeholder="Escribe tu ensayo aquí..." 
+                      />
                    </div>
                    <div className="space-y-8">
-                      <div className="border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center cursor-pointer hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-4" onClick={() => document.getElementById('f')?.click()}>
-                         <input type="file" id="f" className="hidden" onChange={handleFileChange} />
+                      <div className="border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center cursor-pointer hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-4 relative overflow-hidden" onClick={() => document.getElementById('f')?.click()}>
+                         <input type="file" id="f" className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
                          {selectedFile ? (
                            <div className="flex flex-col items-center gap-2">
-                             <FileText className="w-10 h-10 text-primary" />
+                             {filePreview ? (
+                               <img src={filePreview} className="w-20 h-20 object-cover rounded-xl shadow-md border-2 border-white" alt="Preview" />
+                             ) : (
+                               <FileText className="w-10 h-10 text-primary" />
+                             )}
                              <p className="font-label text-xs font-bold text-slate-900 truncate max-w-[150px]">{selectedFile.name}</p>
+                             <p className="text-[8px] uppercase tracking-tighter text-slate-400">Haga clic para cambiar</p>
                            </div>
                          ) : (
                            <>
