@@ -78,6 +78,8 @@ interface EvaluationResult {
   tituloEnsayo: string;
   grado: string;
   fecha: string;
+  ensayoOriginal?: string;
+  puntuacion?: number;
   transcripcionExacta: string;
   observacionesDetalladas: ObservationItem[];
   resumenCategorias: CategorySummary[];
@@ -320,13 +322,34 @@ export default function App() {
       const parsedResult: EvaluationResult = JSON.parse(response.text);
       setResult(parsedResult);
 
+      // Mapping qualitative performance to numeric scores for database stability
+      const scoreMap: Record<string, number> = {
+        'Superior': 5.0,
+        'Alto': 4.0,
+        'Básico': 3.0,
+        'Bajo': 2.0,
+        'S': 5.0,
+        'A': 4.0,
+        'B': 3.0,
+        'BJ': 2.0
+      };
+
+      const performance = parsedResult.desempeñoGlobal || 'Bajo';
+      const numericPuntuacion = scoreMap[performance] || 3.0;
+
       await addDoc(collection(db, 'essays'), {
         ...parsedResult,
+        ensayoOriginal: essay,
+        puntuacion: numericPuntuacion,
         uid: user.uid,
         createdAt: serverTimestamp()
       });
-    } catch (err) {
-      setError("Error en la evaluación. Reintenta.");
+    } catch (err: any) {
+      console.error("Error during evaluation or saving:", err);
+      setError("Error en la evaluación o al guardar. Reintenta.");
+      if (err.message && err.message.includes('permission')) {
+        handleFirestoreError(err, OperationType.WRITE, 'essays');
+      }
     } finally {
       setLoading(false);
     }

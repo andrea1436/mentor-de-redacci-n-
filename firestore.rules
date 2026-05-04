@@ -76,31 +76,30 @@ service cloud.firestore {
       let requiredFields = [
         'nombreEstudiante', 'grado', 'tituloEnsayo', 'ensayoOriginal', 
         'transcripcionExacta', 'fecha', 'puntuacion', 'uid', 'createdAt',
-        'desglose', 'recomendaciones', 'nivelEnsayo', 'observacionesDetalladas', 'resumenCategorias'
+        'desempeñoGlobal', 'justificacionGlobal',
+        'desglose', 'analisisCriterios', 'recomendaciones', 'nivelEnsayo', 
+        'observacionesDetalladas', 'resumenCategorias'
       ];
       
       return hasRequiredFields(requiredFields) &&
              hasOnlyAllowedFields(requiredFields) &&
-             isValidString('nombreEstudiante', 1, 100) &&
-             isValidString('grado', 1, 20) &&
-             isValidString('tituloEnsayo', 1, 256) &&
-             isValidString('ensayoOriginal', 0, 10000) &&
-             isValidString('transcripcionExacta', 1, 10000) &&
-             isValidString('fecha', 1, 32) &&
-             data.puntuacion is number && data.puntuacion >= 0 && data.puntuacion <= 5 &&
+             isValidString('nombreEstudiante', 1, 200) &&
+             isValidString('grado', 1, 50) &&
+             isValidString('tituloEnsayo', 1, 512) &&
+             isValidString('ensayoOriginal', 0, 20000) &&
+             isValidString('transcripcionExacta', 1, 20000) &&
+             isValidString('fecha', 1, 64) &&
+             data.puntuacion is number &&
+             isValidString('desempeñoGlobal', 1, 100) &&
+             isValidString('justificacionGlobal', 1, 5000) &&
              data.desglose is map &&
-             data.desglose.tesis is number && data.desglose.tesis >= 0 && data.desglose.tesis <= 5 &&
-             data.desglose.argumentacion is number && data.desglose.argumentacion >= 0 && data.desglose.argumentacion <= 5 &&
-             data.desglose.coherencia is number && data.desglose.coherencia >= 0 && data.desglose.coherencia <= 5 &&
-             data.desglose.estructura is number && data.desglose.estructura >= 0 && data.desglose.estructura <= 5 &&
-             data.desglose.ortografia is number && data.desglose.ortografia >= 0 && data.desglose.ortografia <= 5 &&
-             data.desglose.pensamientoCritico is number && data.desglose.pensamientoCritico >= 0 && data.desglose.pensamientoCritico <= 5 &&
+             data.analisisCriterios is map &&
              isValidString('recomendaciones', 1, 5000) &&
-             isValidString('nivelEnsayo', 1, 100) &&
+             isValidString('nivelEnsayo', 1, 500) &&
              data.uid == request.auth.uid &&
              data.createdAt == request.time &&
-             isValidList('observacionesDetalladas', 100) &&
-             isValidList('resumenCategorias', 20);
+             isValidList('observacionesDetalladas', 200) &&
+             isValidList('resumenCategorias', 50);
     }
 
     // ===============================================================

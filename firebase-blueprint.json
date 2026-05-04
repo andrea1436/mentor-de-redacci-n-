@@ -5,39 +5,43 @@
       "description": "Stores the evaluation results of a student essay.",
       "type": "object",
       "properties": {
-        "nombreEstudiante": { "type": "string", "description": "Full name of the student." },
-        "grado": { "type": "string", "description": "Grade level of the student." },
-        "tituloEnsayo": { "type": "string", "description": "Title of the essay." },
-        "ensayoOriginal": { "type": "string", "description": "The original text written by the student." },
-        "transcripcionExacta": { "type": "string", "description": "Line-by-line faithful transcription of the original text." },
-        "fecha": { "type": "string", "description": "Date of the evaluation." },
-        "puntuacion": { "type": "number", "description": "Academic score in the range 0.0 - 5.0." },
+        "nombreEstudiante": { "type": "string" },
+        "grado": { "type": "string" },
+        "tituloEnsayo": { "type": "string" },
+        "ensayoOriginal": { "type": "string" },
+        "transcripcionExacta": { "type": "string" },
+        "fecha": { "type": "string" },
+        "puntuacion": { "type": "number" },
+        "desempeñoGlobal": { "type": "string" },
+        "justificacionGlobal": { "type": "string" },
         "desglose": {
           "type": "object",
-          "description": "Technical breakdown of scores.",
           "properties": {
-            "tesis": { "type": "number" },
-            "argumentacion": { "type": "number" },
-            "coherencia": { "type": "number" },
-            "estructura": { "type": "number" },
-            "ortografia": { "type": "number" },
-            "pensamientoCritico": { "type": "number" }
+            "tesis": { "$ref": "#/definitions/ScoreDimension" },
+            "argumentacion": { "$ref": "#/definitions/ScoreDimension" },
+            "coherencia": { "$ref": "#/definitions/ScoreDimension" },
+            "estructura": { "$ref": "#/definitions/ScoreDimension" },
+            "ortografia": { "$ref": "#/definitions/ScoreDimension" }
           }
         },
-        "recomendaciones": { "type": "string", "description": "Concrete technical instructions for improvement." },
-        "nivelEnsayo": { "type": "string", "description": "Academic level categorization." },
-        "uid": { "type": "string", "description": "The UID of the user who owns the evaluation." },
-        "observacionesDetalladas": {
-          "type": "array",
-          "description": "List of detailed observations."
+        "analisisCriterios": {
+          "type": "object",
+          "properties": {
+            "ortografia_letras": { "$ref": "#/definitions/CriterionAnalysis" },
+            "puntuacion": { "$ref": "#/definitions/CriterionAnalysis" },
+            "estructura": { "$ref": "#/definitions/CriterionAnalysis" },
+            "conectores": { "$ref": "#/definitions/CriterionAnalysis" },
+            "claridad": { "$ref": "#/definitions/CriterionAnalysis" },
+            "sustentacion": { "$ref": "#/definitions/CriterionAnalysis" }
+          }
         },
-        "resumenCategorias": {
-          "type": "array",
-          "description": "Summary of errors by category."
-        },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the record was created." }
-      },
-      "required": ["nombreEstudiante", "grado", "tituloEnsayo", "transcripcionExacta", "fecha", "puntuacion", "desglose", "recomendaciones", "nivelEnsayo", "uid", "createdAt"]
+        "recomendaciones": { "type": "string" },
+        "nivelEnsayo": { "type": "string" },
+        "uid": { "type": "string" },
+        "observacionesDetalladas": { "type": "array" },
+        "resumenCategorias": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
