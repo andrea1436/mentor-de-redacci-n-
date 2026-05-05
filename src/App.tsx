@@ -236,18 +236,19 @@ export default function App() {
           Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
           PROHIBIDO usar números o porcentajes en la valoración global.
 
-          CAPACIDAD VISUAL Y DE COLOR (CRÍTICO):
-          - El estudiante puede haber usado LAPICERO ROJO o colores distintos para tildes, puntos o letras específicas. 
-          - DEBES integrar estas marcas de color como parte del texto válido. Si hay una tilde en rojo sobre una vocal, esa letra TIENE tilde. No la ignores ni la marques como error por ser de otro color.
-          - Observa la imagen adjunta con detenimiento para detectar signos de puntuación pequeños (puntos, comas) que puedan estar en colores claros o contrastantes (como rojo).
+          CAPACIDAD VISUAL AVANZADA Y DE COLOR (CRÍTICO):
+          - El manuscrito puede presentar caligrafía CURSIVA (letra pegada), imprenta o una mezcla de ambas. DEBES procesar cada trazo con rigor, identificando letras estilizadas.
+          - El estudiante puede haber usado LAPICERO ROJO u otros colores para recalcar tildes, puntos o letras. 
+          - REGLA DE ORO: Si un signo (tilde, coma, punto) es visible en la imagen, sin importar su color o estilo caligráfico, DEBE ser considerado como presente en el texto.
+          - Observa con detenimiento signos de puntuación minúsculos o trazos finos que podrían confundirse con el fondo del papel.
 
           REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
-          1. PRECISIÓN EN TILDES: No marques como error una tilde que esté bien puesta (independientemente de su color). Analiza minuciosamente las reglas de acentuación.
-          2. PUNTUACIÓN: Verifica comas y puntos. Presta especial atención a puntos finales o comas escritos en rojo o colores distintos; identifícalos como signos válidos.
-          3. MARCAS DE COLOR: Si el ensayo tiene elementos en ROJO, analízalos como parte fundamental del manuscrito.
-          4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', devuelve el texto original NUMERADO POR LÍNEAS.
-          5. REFERENCIA DE LÍNEA: En 'observacionesDetalladas', indica la LÍNEA EXACTA.
-          6. DOBLE CHEQUEO: Verifica cada supuesto error. Si el signo está presente visualmente (aunque sea en otro color), NO es un error de omisión.
+          1. PRECISIÓN EN TILDES Y CURSIVA: No marques como error una tilde que esté presente visualmente, aunque sea un trazo rápido en cursiva. Analiza minuciosamente las reglas de acentuación.
+          2. PUNTUACIÓN Y ESTILO: Identifica puntos y comas incluso si están escritos de forma tenue o en colores (como rojo).
+          3. MARCAS DE COLOR: Considera los elementos en color como parte integral y correcta del texto.
+          4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
+          5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
+          6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
 
           Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
           - Analizar profundamente el estado del texto.
