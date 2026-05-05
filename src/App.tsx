@@ -385,7 +385,16 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Error during evaluation or saving:", err);
-      setError("Error en la evaluación o al guardar. Reintenta.");
+      
+      // Manejar específicamente errores de cuota / tasa (429)
+      if (err.message && (err.message.includes('429') || err.message.includes('Quota exceeded') || err.message.includes('RESOURCE_EXHAUSTED'))) {
+        setError("Cuota de Google agotada. Por favor, espera unos segundos o verifica tu plan en Google AI Studio (límite de 20 revisiones diarias alcanzado).");
+      } else if (err.message && err.message.includes('API key not valid')) {
+        setError("La clave de API de Gemini no es válida. Infórmalo al administrador.");
+      } else {
+        setError(err instanceof Error ? err.message : "Error desconocido al procesar el ensayo.");
+      }
+
       if (err.message && err.message.includes('permission')) {
         handleFirestoreError(err, OperationType.WRITE, 'essays');
       }
@@ -721,9 +730,25 @@ export default function App() {
                 </div>
                 <div className="flex justify-between items-center border-t pt-8">
                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">IERI • {new Date().getFullYear()}</p>
-                   <button onClick={handleEvaluate} disabled={loading} className="px-12 py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-30">
-                      {loading ? 'Analizando...' : 'Enviar revisión'}
-                   </button>
+                   <div className="flex flex-col items-end gap-4">
+                     {error && (
+                       <motion.div 
+                         initial={{ opacity: 0, x: 10 }} 
+                         animate={{ opacity: 1, x: 0 }} 
+                         className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-bold uppercase border border-red-100 flex items-center gap-2 max-w-sm text-right"
+                       >
+                         <HelpCircle className="w-3 h-3 flex-shrink-0" />
+                         <span>{error}</span>
+                       </motion.div>
+                     )}
+                     <button 
+                       onClick={handleEvaluate} 
+                       disabled={loading} 
+                       className="px-12 py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-30 transition-all active:scale-95 shadow-xl shadow-slate-200"
+                     >
+                        {loading ? 'Analizando...' : 'Enviar revisión'}
+                     </button>
+                   </div>
                 </div>
               </motion.section>
             )}
