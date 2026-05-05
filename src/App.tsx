@@ -12,6 +12,7 @@ import { db, auth } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import jsPDF from 'jspdf';
+import logo from './assets/images/escudo.png';
 
 const getApiKey = () => {
   return process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || "";
@@ -101,6 +102,7 @@ interface EvaluationResult {
   };
   recomendaciones: string;
   nivelEnsayo: string;
+  imagePreview?: string | null;
   createdAt?: any;
   uid?: string;
 }
@@ -376,6 +378,7 @@ export default function App() {
           ...parsedResult,
           fecha: uploadDate,
           ensayoOriginal: essay,
+          imagePreview: filePreview,
           puntuacion: numericPuntuacion,
           uid: user?.uid || 'anonymous',
           createdAt: serverTimestamp()
@@ -632,7 +635,7 @@ export default function App() {
           <div className="flex justify-center items-center">
             <div className="h-16 w-auto flex items-center justify-center cursor-default transition-all duration-500 hover:scale-105 active:scale-95 bg-white/40 backdrop-blur-sm rounded-2xl px-4 py-2 border border-white/50 shadow-sm">
               <img 
-                src="/escudo.png?v=1.0.1" 
+                src={logo} 
                 alt="Logo I.E. Retiro de los Indios" 
                 className="h-full w-auto object-contain drop-shadow-md"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }}
@@ -759,7 +762,7 @@ export default function App() {
                   <section id="evaluation-report" className="space-y-24 mt-24 bg-white p-8 rounded-[3rem] print:p-0 print:shadow-none">
                     <section className="text-center space-y-4">
                       <div className="flex justify-center mb-8">
-                         <img src="/escudo.png?v=1.0.2" className="h-20 w-auto" alt="Escudo IERI" />
+                         <img src={logo} className="h-20 w-auto" alt="Escudo IERI" onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=IERI&background=f7d800&color=0056b3&bold=true&size=128'; }} />
                       </div>
                       <span className="font-label text-slate-500 font-bold uppercase tracking-widest text-[10px]">Reporte de Desempeño Académico</span>
                       <h2 className="font-headline text-4xl md:text-5xl font-black text-slate-900 leading-tight">"{result.tituloEnsayo}"</h2>
@@ -987,8 +990,15 @@ export default function App() {
                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               {filteredEssays.map((e, i) => (
-                  <div key={i} onClick={() => { setResult(e); setCurrentView('revision'); }} className="bg-white border p-10 rounded-[3rem] shadow-sm hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden">
+               {filteredEssays.map((e: any, i) => (
+                  <div key={i} onClick={() => { 
+                    setResult(e); 
+                    setFilePreview(e.imagePreview || null); // Cargamos la imagen guardada
+                    setEssay(e.ensayoOriginal || "");
+                    setStudentName(e.nombreEstudiante || "");
+                    setGrade(e.grado || "");
+                    setCurrentView('revision'); 
+                  }} className="bg-white border p-10 rounded-[3rem] shadow-sm hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden">
                      <div className="flex justify-between items-start mb-6">
                         <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-slate-900 transition-colors"><FileText className="w-6 h-6" /></div>
                         <p className="font-headline text-2xl font-black text-slate-900 group-hover:text-primary transition-colors uppercase tracking-tight">{e.desempeñoGlobal}</p>
