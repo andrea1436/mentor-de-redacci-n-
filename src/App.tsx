@@ -14,8 +14,7 @@ import type { User } from 'firebase/auth';
 import jsPDF from 'jspdf';
 
 const getApiKey = () => {
-  const key = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
-  return key;
+  return process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || "";
 };
 
 const ai = new GoogleGenAI({ apiKey: getApiKey() });
@@ -241,7 +240,7 @@ export default function App() {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3-flash-preview",
         contents: [{ role: "user", parts }],
         config: {
           responseMimeType: "application/json",
