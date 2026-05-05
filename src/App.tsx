@@ -13,7 +13,12 @@ import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signI
 import type { User } from 'firebase/auth';
 import jsPDF from 'jspdf';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "" });
+const getApiKey = () => {
+  const key = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+  return key;
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 enum OperationType {
   CREATE = 'create',
@@ -221,6 +226,13 @@ export default function App() {
     setError(null);
     setResult(null);
 
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      setError("No se detectó la clave de API (GEMINI_API_KEY). Configúrala en las variables de entorno.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const parts: any[] = [{ text: `Estudiante: ${studentName}\nGrado: ${grade}\nEnsayo:\n${essay}` }];
       if (selectedFile) {
@@ -229,39 +241,9 @@ export default function App() {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts }],
         config: {
-          systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
-          Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
-          PROHIBIDO usar números o porcentajes en la valoración global.
-
-          CAPACIDAD VISUAL AVANZADA Y DE COLOR (CRÍTICO):
-          - El manuscrito puede presentar caligrafía CURSIVA (letra pegada), imprenta o una mezcla de ambas. DEBES procesar cada trazo con rigor, identificando letras estilizadas.
-          - El estudiante puede haber usado LAPICERO ROJO u otros colores para recalcar tildes, puntos o letras. 
-          - REGLA DE ORO: Si un signo (tilde, coma, punto) es visible en la imagen, sin importar su color o estilo caligráfico, DEBE ser considerado como presente en el texto.
-          - Observa con detenimiento signos de puntuación minúsculos o trazos finos que podrían confundirse con el fondo del papel.
-
-          REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
-          1. PRECISIÓN EN TILDES Y CURSIVA: No marques como error una tilde que esté presente visualmente, aunque sea un trazo rápido en cursiva. Analiza minuciosamente las reglas de acentuación.
-          2. PUNTUACIÓN Y ESTILO: Identifica puntos y comas incluso si están escritos de forma tenue o en colores (como rojo).
-          3. MARCAS DE COLOR: Considera los elementos en color como parte integral y correcta del texto.
-          4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
-          5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
-          6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
-
-          Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
-          - Analizar profundamente el estado del texto.
-          - Liste ejemplos específicos (citas) del ensayo.
-          - Sugerir una ruta de mejora clara.
-
-          Los 6 criterios son:
-          1. Aspectos ortográficos: Énfasis total en Tildes (sin falsos positivos) y grafemas.
-          2. Puntuación y mayúsculas: Énfasis en Comas, Puntos seguidos/aparte.
-          3. Estructura: Tesis, Desarrollo, Conclusión.
-          4. Conectores: Variedad lógica de nexos.
-          5. Claridad: Coherencia y precisión léxica.
-          6. Argumentación: Solidez de las evidencias.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -278,7 +260,7 @@ export default function App() {
                   properties: {
                     num: { type: Type.NUMBER },
                     parrafo: { type: Type.STRING },
-                    linea: { type: Type.NUMBER }, // Nuevo
+                    linea: { type: Type.NUMBER },
                     fragmento: { type: Type.STRING },
                     categoria: { type: Type.STRING },
                     errorIdentificado: { type: Type.STRING },
@@ -328,11 +310,41 @@ export default function App() {
               nivelEnsayo: { type: Type.STRING }
             },
             required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "desempeñoGlobal", "justificacionGlobal", "desglose", "analisisCriterios", "recomendaciones", "nivelEnsayo"]
-          }
+          },
+          systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
+          Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
+          PROHIBIDO usar números o porcentajes en la valoración global.
+
+          CAPACIDAD VISUAL AVANZADA Y DE COLOR (CRÍTICO):
+          - El manuscrito puede presentar caligrafía CURSIVA (letra pegada), imprenta o una mezcla de ambas. DEBES procesar cada trazo con rigor, identificando letras estilizadas.
+          - El estudiante puede haber usado LAPICERO ROJO u otros colores para recalcar tildes, puntos o letras. 
+          - REGLA DE ORO: Si un signo (tilde, coma, punto) es visible en la imagen, sin importar su color o estilo caligráfico, DEBE ser considerado como presente en el texto.
+          - Observa con detenimiento signos de puntuación minúsculos o trazos finos que podrían confundirse con el fondo del papel.
+
+          REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
+          1. PRECISIÓN EN TILDES Y CURSIVA: No marques como error una tilde que esté presente visualmente, aunque sea un trazo rápido en cursiva. Analiza minuciosamente las reglas de acentuación.
+          2. PUNTUACIÓN Y ESTILO: Identifica puntos y comas incluso si están escritos de forma tenue o en colores (como rojo).
+          3. MARCAS DE COLOR: Considera los elementos en color como parte integral y correcta del texto.
+          4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
+          5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
+          6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
+
+          Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
+          - Analizar profundamente el estado del texto.
+          - Liste ejemplos específicos (citas) del ensayo.
+          - Sugerir una ruta de mejora clara.
+
+          Los 6 criterios son:
+          1. Aspectos ortográficos: Énfasis total en Tildes (sin falsos positivos) y grafemas.
+          2. Puntuación y mayúsculas: Énfasis en Comas, Puntos seguidos/aparte.
+          3. Estructura: Tesis, Desarrollo, Conclusión.
+          4. Conectores: Variedad lógica de nexos.
+          5. Claridad: Coherencia y precisión léxica.
+          6. Argumentación: Solidez de las evidencias.`
         }
       });
 
-      const parsedResult: EvaluationResult = JSON.parse(response.text);
+      const parsedResult: EvaluationResult = JSON.parse(response.text || "");
       
       // Override AI generated date with real upload date
       const uploadDate = new Intl.DateTimeFormat('es-CO', {
