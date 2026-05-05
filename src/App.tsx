@@ -241,7 +241,7 @@ export default function App() {
 
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [{ role: "user", parts }],
+        contents: { parts: parts },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -759,7 +759,7 @@ export default function App() {
                   <section id="evaluation-report" className="space-y-24 mt-24 bg-white p-8 rounded-[3rem] print:p-0 print:shadow-none">
                     <section className="text-center space-y-4">
                       <div className="flex justify-center mb-8">
-                         <img src="/escudo.png" className="h-20 w-auto" alt="Escudo IERI" />
+                         <img src="/escudo.png?v=1.0.2" className="h-20 w-auto" alt="Escudo IERI" />
                       </div>
                       <span className="font-label text-slate-500 font-bold uppercase tracking-widest text-[10px]">Reporte de Desempeño Académico</span>
                       <h2 className="font-headline text-4xl md:text-5xl font-black text-slate-900 leading-tight">"{result.tituloEnsayo}"</h2>
@@ -769,6 +769,22 @@ export default function App() {
                         <p>{result.fecha}</p>
                       </div>
                     </section>
+
+                    {filePreview && (
+                      <section className="space-y-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <Eye className="w-5 h-5 text-primary" />
+                          <h3 className="font-headline text-xl font-bold text-slate-900">Manuscrito Original</h3>
+                        </div>
+                        <div className="bg-slate-100 rounded-[2rem] p-4 flex justify-center overflow-hidden border border-slate-200">
+                          <img 
+                            src={filePreview} 
+                            className="max-w-full h-auto rounded-xl shadow-lg border-4 border-white" 
+                            alt="Ensayo Original" 
+                          />
+                        </div>
+                      </section>
+                    )}
 
                     <div className="flex justify-center gap-4 no-print print:hidden">
                        <button 
