@@ -96,7 +96,7 @@ service cloud.firestore {
              data.analisisCriterios is map &&
              isValidString('recomendaciones', 1, 5000) &&
              isValidString('nivelEnsayo', 1, 500) &&
-             data.uid == request.auth.uid &&
+             (data.uid == 'anonymous' || (isAuthenticated() && data.uid == request.auth.uid)) &&
              data.createdAt == request.time &&
              isValidList('observacionesDetalladas', 200) &&
              isValidList('resumenCategorias', 50);
@@ -107,11 +107,11 @@ service cloud.firestore {
     // ===============================================================
 
     match /essays/{essayId} {
-      // Users can only read their own evaluations
-      allow read: if isDocOwner();
+      // Evaluations can be read if owner or if connections tests allow
+      allow read: if isDocOwner() || (isAuthenticated() && resource.data.uid == 'anonymous');
       
-      // Users can create their own evaluations
-      allow create: if isVerified() && isValidEssay(request.resource.data);
+      // Allow public creation of evaluations
+      allow create: if isValidEssay(request.resource.data);
       
       // Evaluations are immutable once created
       allow update, delete: if false;

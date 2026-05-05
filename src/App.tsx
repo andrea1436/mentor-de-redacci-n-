@@ -6,13 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from "motion/react";
-import { FileText, BookOpen, Brain, ImagePlus, User as UserIcon, LogOut, ChevronRight, Sparkles, SpellCheck, Network, Layers, Link as LinkIcon, Eye, HelpCircle, History } from 'lucide-react';
+import { FileText, BookOpen, Brain, ImagePlus, User as UserIcon, LogOut, ChevronRight, Sparkles, SpellCheck, Network, Layers, Link as LinkIcon, Eye, HelpCircle, History, Download, Printer } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, getDocFromServer, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import type { User } from 'firebase/auth';
+import jsPDF from 'jspdf';
 
-// Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "" });
 
 enum OperationType {
@@ -41,6 +41,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 interface ObservationItem {
   num: number;
   parrafo: string;
+  linea: number; // Nuevo campo para número de línea
   fragmento: string;
   categoria: string;
   errorIdentificado: string;
@@ -211,7 +212,6 @@ export default function App() {
       setError("Escribe algo o sube un archivo.");
       return;
     }
-    if (!user) { handleLogin(); return; }
     if (!studentName.trim() || !grade.trim()) {
       setError("Completa tus datos primero.");
       return;
@@ -232,9 +232,16 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: [{ role: "user", parts }],
         config: {
-          systemInstruction: `Actúa como un Mentor Académico Estricto para la I.E. RETIRO DE LOS INDIOS (Grado 9). 
+          systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con un ojo clínico para la ortografía y gramática. 
           Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
-          PROHIBIDO usar números o porcentajes. El tono debe ser formal, académico y motivacional.
+          PROHIBIDO usar números o porcentajes en la valoración global.
+
+          REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
+          1. PRECISIÓN EN TILDES: No marques como error una tilde que esté bien puesta. Analiza minuciosamente las reglas de acentuación (agudas, graves, esdrújulas, tildes diacríticas). 
+          2. PUNTUACIÓN: Verifica comas y puntos. No separes sujeto de predicado con comas.
+          3. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', devuelve el texto original NUMERADO POR LÍNEAS.
+          4. REFERENCIA DE LÍNEA: En 'observacionesDetalladas', indica la LÍNEA EXACTA.
+          5. DOBLE CHEQUEO: Verifica cada error. Si hay duda, ofrece una "sugerencia" en vez de marcarlo como "error".
 
           Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
           - Analizar profundamente el estado del texto.
@@ -242,14 +249,12 @@ export default function App() {
           - Sugerir una ruta de mejora clara.
 
           Los 6 criterios son:
-          1. Aspectos ortográficos: Tildes y uso correcto de grafemas (b/v, c/s/z, etc).
-          2. Puntuación y mayúsculas: Uso de comas, puntos y signos de expresión.
-          3. Estructura: Calidad de Introducción (tesis), Desarrollo y Conclusión.
-          4. Conectores: Variedad y pertinencia lógica de los nexos.
-          5. Claridad: Coherencia, evitar redundancias y ambigüedad.
-          6. Argumentación: Solidez, evidencias y ejemplos que sustentan la tesis.
-
-          En 'observacionesDetalladas', identifica errores puntuales, explica POR QUÉ es un error y cómo corregirlo.`,
+          1. Aspectos ortográficos: Énfasis total en Tildes (sin falsos positivos) y grafemas.
+          2. Puntuación y mayúsculas: Énfasis en Comas, Puntos seguidos/aparte.
+          3. Estructura: Tesis, Desarrollo, Conclusión.
+          4. Conectores: Variedad lógica de nexos.
+          5. Claridad: Coherencia y precisión léxica.
+          6. Argumentación: Solidez de las evidencias.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -266,13 +271,14 @@ export default function App() {
                   properties: {
                     num: { type: Type.NUMBER },
                     parrafo: { type: Type.STRING },
+                    linea: { type: Type.NUMBER }, // Nuevo
                     fragmento: { type: Type.STRING },
                     categoria: { type: Type.STRING },
                     errorIdentificado: { type: Type.STRING },
                     explicacion: { type: Type.STRING },
                     correccionSugerida: { type: Type.STRING }
                   },
-                  required: ["num", "parrafo", "fragmento", "categoria", "errorIdentificado", "explicacion", "correccionSugerida"]
+                  required: ["num", "parrafo", "linea", "fragmento", "categoria", "errorIdentificado", "explicacion", "correccionSugerida"]
                 }
               },
               resumenCategorias: {
@@ -346,14 +352,19 @@ export default function App() {
       const performance = parsedResult.desempeñoGlobal || 'Bajo';
       const numericPuntuacion = scoreMap[performance] || 3.0;
 
-      await addDoc(collection(db, 'essays'), {
-        ...parsedResult,
-        fecha: uploadDate, // Explicitly set it here as well
-        ensayoOriginal: essay,
-        puntuacion: numericPuntuacion,
-        uid: user.uid,
-        createdAt: serverTimestamp()
-      });
+      // Try to save to database if connection is available, but don't block UI if it fails
+      try {
+        await addDoc(collection(db, 'essays'), {
+          ...parsedResult,
+          fecha: uploadDate,
+          ensayoOriginal: essay,
+          puntuacion: numericPuntuacion,
+          uid: user?.uid || 'anonymous',
+          createdAt: serverTimestamp()
+        });
+      } catch (dbErr) {
+        console.warn("Could not save to library, but showing results:", dbErr);
+      }
     } catch (err: any) {
       console.error("Error during evaluation or saving:", err);
       setError("Error en la evaluación o al guardar. Reintenta.");
@@ -362,6 +373,216 @@ export default function App() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!result) return;
+    
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const margin = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const contentWidth = pageWidth - (margin * 2);
+      let y = 30;
+
+      // Header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("REPORTE DE EVALUACIÓN ACADÉMICA", margin, y);
+      
+      y += 12;
+      doc.setFontSize(14);
+      doc.setTextColor(51, 65, 85); // slate-700
+      doc.text(`"${result.tituloEnsayo}"`, margin, y);
+
+      y += 12;
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(`ESTUDIANTE: ${result.nombreEstudiante.toUpperCase()}`, margin, y);
+      doc.text(`GRADO: ${result.grado.toUpperCase()}`, margin + 80, y);
+      doc.text(`FECHA: ${result.fecha}`, margin + 140, y);
+
+      y += 10;
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.line(margin, y, pageWidth - margin, y);
+
+      // 1. Transcription / Original Essay
+      y += 15;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("TEXTO EVALUADO:", margin, y);
+      y += 6;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105); // slate-600
+      const essayLines = doc.splitTextToSize(result.transcripcionExacta || essay, contentWidth);
+      
+      // Handle pagination for long essays early if needed
+      essayLines.forEach((line: string) => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.text(line, margin, y);
+        y += 5;
+      });
+
+      y += 10;
+      if (y > 260) { doc.addPage(); y = 20; }
+
+      // 2. Performance Summary
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text("VALORACIÓN GLOBAL:", margin, y);
+      
+      y += 10;
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.rect(margin, y - 5, contentWidth, 35, 'F');
+      
+      doc.setFontSize(18);
+      doc.setTextColor(8, 145, 178); // cyan-600 (approx primary)
+      doc.text(result.desempeñoGlobal.toUpperCase(), margin + 5, y + 5);
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      const justificationLines = doc.splitTextToSize(result.justificacionGlobal, contentWidth - 10);
+      doc.text(justificationLines, margin + 5, y + 15);
+      
+      y += 35;
+
+      // 3. Score Breakdown (Quantitative/Qualitative levels)
+      y += 10;
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text("DESGLOSE POR DIMENSIONES:", margin, y);
+      y += 10;
+
+      Object.entries(result.desglose).forEach(([key, val]: [string, any], i) => {
+         doc.setFontSize(9);
+         doc.setFont("helvetica", "bold");
+         doc.setTextColor(71, 85, 105);
+         doc.text(key.toUpperCase(), margin, y);
+         doc.setTextColor(8, 145, 178);
+         doc.text(val.desempeño, margin + 40, y);
+         
+         y += 5;
+         doc.setFont("helvetica", "normal");
+         doc.setTextColor(100, 116, 139);
+         const commentLines = doc.splitTextToSize(val.comentario, contentWidth - 40);
+         doc.text(commentLines, margin + 40, y);
+         y += (commentLines.length * 4) + 4;
+         
+         if (y > 275) { doc.addPage(); y = 20; }
+      });
+
+      // 4. Recommendations
+      y += 5;
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text("RECOMENDACIONES PEDAGÓGICAS:", margin, y);
+      y += 8;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85);
+      const recommendations = doc.splitTextToSize(result.recomendaciones, contentWidth);
+      doc.text(recommendations, margin, y);
+      y += (recommendations.length * 5) + 10;
+
+      // 5. Evaluation Criteria (Detailed Analysis)
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("ANÁLISIS DE CRITERIOS ESPECÍFICOS:", margin, y);
+      y += 10;
+
+      Object.entries(result.analisisCriterios).forEach(([key, value]) => {
+        if (y > 250) { doc.addPage(); y = 20; }
+        
+        const criterion = value as CriterionAnalysis;
+        const keyName = key.replace(/_/g, ' ').toUpperCase()
+                           .replace("ORTOGRAFIA LETRAS", "ORTOGRAFÍA")
+                           .replace("PUNTUACION", "PUNTUACIÓN")
+                           .replace("SUSTENTACION", "ARGUMENTACIÓN");
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${keyName}:`, margin, y);
+        y += 6;
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        const analysisLines = doc.splitTextToSize(criterion.analisis, contentWidth);
+        doc.text(analysisLines, margin, y);
+        y += (analysisLines.length * 4) + 2;
+
+        if (criterion.ejemplos && criterion.ejemplos.length > 0) {
+          doc.setFont("helvetica", "italic");
+          doc.setTextColor(185, 28, 28); // red-700
+          const examples = "Evidencias: " + criterion.ejemplos.join(" | ");
+          const exampleLines = doc.splitTextToSize(examples, contentWidth);
+          doc.text(exampleLines, margin, y);
+          y += (exampleLines.length * 4);
+        }
+        
+        y += 2;
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(8, 145, 178);
+        const suggestion = "Sugerencia: " + criterion.mejoras;
+        const suggestionLines = doc.splitTextToSize(suggestion, contentWidth);
+        doc.text(suggestionLines, margin, y);
+        y += (suggestionLines.length * 4) + 8;
+      });
+
+      // 6. Detailed Findings (specific errors)
+      if (y > 250) { doc.addPage(); y = 20; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text("HALLAZGOS PUNTUALES:", margin, y);
+      y += 10;
+
+      result.observacionesDetalladas.forEach((obs) => {
+        if (y > 250) { doc.addPage(); y = 20; }
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${obs.num}. Línea ${obs.linea} (Párr. ${obs.parrafo}) - ${obs.categoria}`, margin, y);
+        y += 5;
+        
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(185, 28, 28);
+        doc.text(`"${obs.fragmento}"`, margin, y + 1);
+        y += 6;
+        
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        const explLines = doc.splitTextToSize(`Error: ${obs.errorIdentificado}. ${obs.explicacion}`, contentWidth);
+        doc.text(explLines, margin, y);
+        y += (explLines.length * 4) + 1;
+        
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Corrección: ${obs.correccionSugerida}`, margin, y);
+        y += 8;
+      });
+
+      doc.save(`Retroalimentacion_${result.nombreEstudiante.replace(/\s+/g, '_')}.pdf`);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+      alert("Hubo un error al generar el archivo. Por favor, usa la opción 'Imprimir' y selecciona 'Guardar como PDF'.");
     }
   };
 
@@ -410,17 +631,6 @@ export default function App() {
                 {currentView === 'revision' && <motion.div layoutId="nav-glow" className="absolute -bottom-2 left-0 w-full h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(0,229,255,0.6)]" />}
               </button>
             </nav>
-            {user ? (
-               <div className="flex items-center gap-4 border-l pl-8 border-slate-200">
-                  <img src={user.photoURL || ""} className="w-8 h-8 rounded-full border-2 border-primary/20 shadow-sm" alt="User" />
-                  <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors lowercase font-medium tracking-normal flex items-center gap-1">
-                    <LogOut className="w-3 h-3" />
-                    <span>salir</span>
-                  </button>
-               </div>
-            ) : (
-               <button onClick={handleLogin} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl shadow-lg hover:bg-slate-800 active:scale-95 transition-all">Entrar</button>
-            )}
           </div>
         </div>
       </header>
@@ -494,7 +704,7 @@ export default function App() {
                 <div className="flex justify-between items-center border-t pt-8">
                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">IERI • {new Date().getFullYear()}</p>
                    <button onClick={handleEvaluate} disabled={loading} className="px-12 py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-800 disabled:opacity-30">
-                      {loading ? 'Analizando...' : user ? 'Enviar revisión' : 'Entrar para enviar'}
+                      {loading ? 'Analizando...' : 'Enviar revisión'}
                    </button>
                 </div>
               </motion.section>
@@ -503,15 +713,36 @@ export default function App() {
             <AnimatePresence>
               {result && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-24 mt-24">
-                  <section className="text-center space-y-4">
-                    <span className="font-label text-slate-500 font-bold uppercase tracking-widest text-[10px]">Reporte de Desempeño</span>
-                    <h2 className="font-headline text-4xl md:text-5xl font-black text-slate-900 leading-tight">"{result.tituloEnsayo}"</h2>
-                    <div className="flex justify-center gap-6 text-xs font-bold tracking-widest text-slate-400">
-                      <p>{result.nombreEstudiante}</p>
-                      <p>{result.grado}</p>
-                      <p>{result.fecha}</p>
+                  <section id="evaluation-report" className="space-y-24 mt-24 bg-white p-8 rounded-[3rem] print:p-0 print:shadow-none">
+                    <section className="text-center space-y-4">
+                      <div className="flex justify-center mb-8">
+                         <img src="/escudo.png" className="h-20 w-auto" alt="Escudo IERI" />
+                      </div>
+                      <span className="font-label text-slate-500 font-bold uppercase tracking-widest text-[10px]">Reporte de Desempeño Académico</span>
+                      <h2 className="font-headline text-4xl md:text-5xl font-black text-slate-900 leading-tight">"{result.tituloEnsayo}"</h2>
+                      <div className="flex justify-center gap-6 text-xs font-bold tracking-widest text-slate-400 uppercase">
+                        <p>{result.nombreEstudiante}</p>
+                        <p>{result.grado}</p>
+                        <p>{result.fecha}</p>
+                      </div>
+                    </section>
+
+                    <div className="flex justify-center gap-4 no-print print:hidden">
+                       <button 
+                         onClick={handleDownloadPDF} 
+                         className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:scale-105 transition-transform"
+                       >
+                         <Download className="w-4 h-4" />
+                         Descargar Reporte PDF
+                       </button>
+                       <button 
+                         onClick={() => window.print()} 
+                         className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:scale-105 transition-transform"
+                       >
+                         <Printer className="w-4 h-4" />
+                         Imprimir
+                       </button>
                     </div>
-                  </section>
 
                   <section className="space-y-8">
                      <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 font-body text-lg text-slate-700 leading-relaxed italic whitespace-pre-wrap">
@@ -660,7 +891,7 @@ export default function App() {
                               <div className="md:w-1/3 space-y-3">
                                  <div className="flex items-center gap-2">
                                     <span className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-[10px]">{o.num}</span>
-                                    <span className="font-label text-[8px] font-bold text-slate-400 uppercase tracking-widest">Párrafo {o.parrafo}</span>
+                                    <span className="font-label text-[8px] font-bold text-slate-400 uppercase tracking-widest">Línea {o.linea} (Párr. {o.parrafo})</span>
                                  </div>
                                  <div className="bg-red-50/50 p-3 rounded-2xl border border-red-100/50">
                                     <p className="font-body text-[13px] italic text-red-700 leading-snug">"{o.fragmento}"</p>
@@ -680,8 +911,9 @@ export default function App() {
                         ))}
                      </div>
                   </section>
-                </motion.div>
-              )}
+                </section>
+              </motion.div>
+            )}
             </AnimatePresence>
           </>
         ) : (

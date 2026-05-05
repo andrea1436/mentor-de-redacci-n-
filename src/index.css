@@ -77,3 +77,9 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
