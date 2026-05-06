@@ -242,8 +242,8 @@ export default function App() {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts: parts },
+        model: "gemini-flash-latest",
+        contents: [{ role: "user", parts }],
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -329,6 +329,7 @@ export default function App() {
           4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
           5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
           6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
+          7. EXHAUSTIVIDAD TOTAL: Debes identificar y reportar absolutamente TODOS los errores ortográficos (tildes, grafemas, mayúsculas), de puntuación, gramaticales y de sentido encontrados en el texto. No omitas ninguno por pequeño que sea. TODOS deben estar listados en 'observacionesDetalladas'.
 
           Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
           - Analizar profundamente el estado del texto.
