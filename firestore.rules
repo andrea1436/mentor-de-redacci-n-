@@ -78,7 +78,7 @@ service cloud.firestore {
         'transcripcionExacta', 'fecha', 'puntuacion', 'uid', 'createdAt',
         'desempeñoGlobal', 'justificacionGlobal',
         'desglose', 'analisisCriterios', 'recomendaciones', 'nivelEnsayo', 
-        'observacionesDetalladas', 'resumenCategorias'
+        'observacionesDetalladas', 'resumenCategorias', 'imagePreview'
       ];
       
       return hasRequiredFields(requiredFields) &&
@@ -87,7 +87,7 @@ service cloud.firestore {
              isValidString('grado', 1, 50) &&
              isValidString('tituloEnsayo', 1, 512) &&
              isValidString('ensayoOriginal', 0, 20000) &&
-             isValidString('transcripcionExacta', 1, 20000) &&
+             isValidString('transcripcionExacta', 0, 20000) &&
              isValidString('fecha', 1, 64) &&
              data.puntuacion is number &&
              isValidString('desempeñoGlobal', 1, 100) &&
@@ -99,7 +99,8 @@ service cloud.firestore {
              (data.uid == 'anonymous' || (isAuthenticated() && data.uid == request.auth.uid)) &&
              data.createdAt == request.time &&
              isValidList('observacionesDetalladas', 200) &&
-             isValidList('resumenCategorias', 50);
+             isValidList('resumenCategorias', 50) &&
+             (data.imagePreview == null || data.imagePreview is string);
     }
 
     // ===============================================================

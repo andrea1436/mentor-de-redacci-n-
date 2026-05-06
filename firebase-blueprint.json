@@ -38,6 +38,7 @@
         "recomendaciones": { "type": "string" },
         "nivelEnsayo": { "type": "string" },
         "uid": { "type": "string" },
+        "imagePreview": { "type": "string" },
         "observacionesDetalladas": { "type": "array" },
         "resumenCategorias": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" }

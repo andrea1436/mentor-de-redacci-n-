@@ -133,10 +133,15 @@ export default function App() {
 
     async function testConnection() {
       try {
+        // Try to reach the server to verify config
         await getDocFromServer(doc(db, 'test', 'connection'));
+        console.log("Firestore connection verified.");
       } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
+        // If we're offline, it might just be the initial connection delay
+        if(error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Could not reach'))) {
+          console.warn("Firestore is taking longer than usual to connect. Retrying in background...");
+        } else {
+          console.error("Firebase configuration check:", error);
         }
       }
     }
@@ -235,83 +240,118 @@ export default function App() {
     }
 
     try {
-      const parts: any[] = [{ text: `Estudiante: ${studentName}\nGrado: ${grade}\nEnsayo:\n${essay}` }];
+      const prompt = `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
+      Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
+      PROHIBIDO usar números o porcentajes en la valoración global.
+
+      CAPACIDAD VISUAL AVANZADA Y DE COLOR (CRÍTICO):
+      - El manuscrito puede presentar caligrafía CURSIVA (letra pegada), imprenta o una mezcla de ambas. DEBES procesar cada trazo con rigor, identificando letras estilizadas.
+      - El estudiante puede haber usado LAPICERO ROJO u otros colores para recalcar tildes, puntos o letras. 
+      - REGLA DE ORO: Si un signo (tilde, coma, punto) es visible en la imagen, sin importar su color o estilo caligráfico, DEBE ser considerado como presente en el texto.
+      - Observa con detenimiento signos de puntuación minúsculos o trazos finos que podrían confundirse con el fondo del papel.
+
+      REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
+      1. PRECISIÓN EN TILDES Y CURSIVA: No marques como error una tilde que esté presente visualmente, aunque sea un trazo rápido en cursiva. Analiza minuciosamente las reglas de acentuación.
+      2. PUNTUACIÓN Y ESTILO: Identifica puntos y comas incluso si están escritos de forma tenue o en colores (como rojo).
+      3. MARCAS DE COLOR: Considera los elementos en color como parte integral y correcta del texto.
+      4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
+      5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
+      6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
+      7. EXHAUSTIVIDAD TOTAL: Debes identificar y reportar absolutamente TODOS los errores ortográficos (tildes, grafemas, mayúsculas), de puntuación, gramaticales y de sentido encontrados en el texto. No omitas ninguno por pequeño que sea. TODOS deben estar listados en 'observacionesDetalladas'.
+
+      Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
+      - Analizar profundamente el estado del texto.
+      - Liste ejemplos específicos (citas) del ensayo.
+      - Sugerir una ruta de mejora clara.
+
+      Los 6 criterios son:
+      1. Aspectos ortográficos: Énfasis total en Tildes (sin falsos positivos) y grafemas.
+      2. Puntuación y mayúsculas: Énfasis en Comas, Puntos seguidos/aparte.
+      3. Estructura: Tesis, Desarrollo, Conclusión.
+      4. Conectores: Variedad lógica de nexos.
+      5. Claridad: Coherencia y precisión léxica.
+      6. Argumentación: Solidez de las evidencias.
+
+      ESTUDIANTE: ${studentName}\nGrado: ${grade}\nEnsayo:\n${essay}
+
+      Responde estrictamente en formato JSON siguiendo el esquema solicitado.`;
+      const parts: any[] = [{ text: prompt }];
       if (selectedFile) {
         const filePart = await fileToGenerativePart(selectedFile);
         parts.push(filePart);
       }
 
-      const response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
-        contents: [{ role: "user", parts }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
+      const responseSchema: any = {
+        type: Type.OBJECT,
+        properties: {
+          nombreEstudiante: { type: Type.STRING },
+          tituloEnsayo: { type: Type.STRING },
+          grado: { type: Type.STRING },
+          fecha: { type: Type.STRING },
+          transcripcionExacta: { type: Type.STRING },
+          observacionesDetalladas: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                num: { type: Type.NUMBER },
+                parrafo: { type: Type.STRING },
+                linea: { type: Type.NUMBER },
+                fragmento: { type: Type.STRING },
+                categoria: { type: Type.STRING },
+                errorIdentificado: { type: Type.STRING },
+                explicacion: { type: Type.STRING },
+                correccionSugerida: { type: Type.STRING }
+              },
+              required: ["num", "parrafo", "linea", "fragmento", "categoria", "errorIdentificado", "explicacion", "correccionSugerida"]
+            }
+          },
+          resumenCategorias: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                categoria: { type: Type.STRING },
+                cantidad: { type: Type.NUMBER }
+              },
+              required: ["categoria", "cantidad"]
+            }
+          },
+          desempenoGlobal: { type: Type.STRING },
+          justificacionGlobal: { type: Type.STRING },
+          desglose: {
             type: Type.OBJECT,
             properties: {
-              nombreEstudiante: { type: Type.STRING },
-              tituloEnsayo: { type: Type.STRING },
-              grado: { type: Type.STRING },
-              fecha: { type: Type.STRING },
-              transcripcionExacta: { type: Type.STRING },
-              observacionesDetalladas: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    num: { type: Type.NUMBER },
-                    parrafo: { type: Type.STRING },
-                    linea: { type: Type.NUMBER },
-                    fragmento: { type: Type.STRING },
-                    categoria: { type: Type.STRING },
-                    errorIdentificado: { type: Type.STRING },
-                    explicacion: { type: Type.STRING },
-                    correccionSugerida: { type: Type.STRING }
-                  },
-                  required: ["num", "parrafo", "linea", "fragmento", "categoria", "errorIdentificado", "explicacion", "correccionSugerida"]
-                }
-              },
-              resumenCategorias: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    categoria: { type: Type.STRING },
-                    cantidad: { type: Type.NUMBER }
-                  },
-                  required: ["categoria", "cantidad"]
-                }
-              },
-              desempeñoGlobal: { type: Type.STRING },
-              justificacionGlobal: { type: Type.STRING },
-              desglose: {
-                type: Type.OBJECT,
-                properties: {
-                  tesis: { type: Type.OBJECT, properties: { desempeño: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeño", "comentario"] },
-                  argumentacion: { type: Type.OBJECT, properties: { desempeño: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeño", "comentario"] },
-                  coherencia: { type: Type.OBJECT, properties: { desempeño: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeño", "comentario"] },
-                  estructura: { type: Type.OBJECT, properties: { desempeño: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeño", "comentario"] },
-                  ortografia: { type: Type.OBJECT, properties: { desempeño: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeño", "comentario"] }
-                },
-                required: ["tesis", "argumentacion", "coherencia", "estructura", "ortografia"]
-              },
-              analisisCriterios: {
-                type: Type.OBJECT,
-                properties: {
-                  ortografia_letras: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-                  puntuacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-                  estructura: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-                  conectores: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-                  claridad: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-                  sustentacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] }
-                },
-                required: ["ortografia_letras", "puntuacion", "estructura", "conectores", "claridad", "sustentacion"]
-              },
-              recomendaciones: { type: Type.STRING },
-              nivelEnsayo: { type: Type.STRING }
+              tesis: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
+              argumentacion: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
+              coherencia: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
+              estructura: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
+              ortografia: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] }
             },
-            required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "desempeñoGlobal", "justificacionGlobal", "desglose", "analisisCriterios", "recomendaciones", "nivelEnsayo"]
+            required: ["tesis", "argumentacion", "coherencia", "estructura", "ortografia"]
           },
+          analisisCriterios: {
+            type: Type.OBJECT,
+            properties: {
+              ortografia_letras: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
+              puntuacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
+              estructura: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
+              conectores: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
+              claridad: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
+              sustentacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] }
+            },
+            required: ["ortografia_letras", "puntuacion", "estructura", "conectores", "claridad", "sustentacion"]
+          },
+          recomendaciones: { type: Type.STRING },
+          nivelEnsayo: { type: Type.STRING }
+        },
+        required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "desempenoGlobal", "justificacionGlobal", "desglose", "analisisCriterios", "recomendaciones", "nivelEnsayo"]
+      };
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ role: "user", parts }],
+        config: {
           systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
           Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
           PROHIBIDO usar números o porcentajes en la valoración global.
@@ -342,11 +382,49 @@ export default function App() {
           3. Estructura: Tesis, Desarrollo, Conclusión.
           4. Conectores: Variedad lógica de nexos.
           5. Claridad: Coherencia y precisión léxica.
-          6. Argumentación: Solidez de las evidencias.`
+          6. Argumentación: Solidez de las evidencias.`,
+          responseMimeType: "application/json",
+          responseSchema: responseSchema,
         }
       });
 
-      const parsedResult: EvaluationResult = JSON.parse(response.text || "");
+      const responseText = response.text;
+      const rawResult = JSON.parse(responseText || "{}");
+      
+      const parsedResult: EvaluationResult = {
+        nombreEstudiante: rawResult.nombreEstudiante || studentName,
+        tituloEnsayo: rawResult.tituloEnsayo || "Sin título",
+        grado: rawResult.grado || grade,
+        fecha: rawResult.fecha || "",
+        transcripcionExacta: rawResult.transcripcionExacta || "",
+        observacionesDetalladas: Array.isArray(rawResult.observacionesDetalladas) ? rawResult.observacionesDetalladas : [],
+        resumenCategorias: Array.isArray(rawResult.resumenCategorias) ? rawResult.resumenCategorias : [],
+        desempeñoGlobal: rawResult.desempenoGlobal || "B",
+        justificacionGlobal: rawResult.justificacionGlobal || "",
+        desglose: rawResult.desglose ? {
+          tesis: { desempeño: rawResult.desglose.tesis?.desempeno || "B", comentario: rawResult.desglose.tesis?.comentario || "" },
+          argumentacion: { desempeño: rawResult.desglose.argumentacion?.desempeno || "B", comentario: rawResult.desglose.argumentacion?.comentario || "" },
+          coherencia: { desempeño: rawResult.desglose.coherencia?.desempeno || "B", comentario: rawResult.desglose.coherencia?.comentario || "" },
+          estructura: { desempeño: rawResult.desglose.estructura?.desempeno || "B", comentario: rawResult.desglose.estructura?.comentario || "" },
+          ortografia: { desempeño: rawResult.desglose.ortografia?.desempeno || "B", comentario: rawResult.desglose.ortografia?.comentario || "" }
+        } : {
+          tesis: { desempeño: "B", comentario: "" },
+          argumentacion: { desempeño: "B", comentario: "" },
+          coherencia: { desempeño: "B", comentario: "" },
+          estructura: { desempeño: "B", comentario: "" },
+          ortografia: { desempeño: "B", comentario: "" }
+        },
+        analisisCriterios: rawResult.analisisCriterios || {
+          ortografia_letras: { analisis: "", ejemplos: [], mejoras: "" },
+          puntuacion: { analisis: "", ejemplos: [], mejoras: "" },
+          estructura: { analisis: "", ejemplos: [], mejoras: "" },
+          conectores: { analisis: "", ejemplos: [], mejoras: "" },
+          claridad: { analisis: "", ejemplos: [], mejoras: "" },
+          sustentacion: { analisis: "", ejemplos: [], mejoras: "" }
+        },
+        recomendaciones: rawResult.recomendaciones || "",
+        nivelEnsayo: rawResult.nivelEnsayo || ""
+      };
       
       // Override AI generated date with real upload date
       const uploadDate = new Intl.DateTimeFormat('es-CO', {
@@ -375,15 +453,28 @@ export default function App() {
 
       // Try to save to database if connection is available, but don't block UI if it fails
       try {
-        await addDoc(collection(db, 'essays'), {
-          ...parsedResult,
-          fecha: uploadDate,
+        const finalData = {
+          nombreEstudiante: parsedResult.nombreEstudiante,
+          tituloEnsayo: parsedResult.tituloEnsayo,
+          grado: parsedResult.grado,
+          fecha: parsedResult.fecha,
+          transcripcionExacta: parsedResult.transcripcionExacta,
+          observacionesDetalladas: parsedResult.observacionesDetalladas,
+          resumenCategorias: parsedResult.resumenCategorias,
+          desempeñoGlobal: parsedResult.desempeñoGlobal,
+          justificacionGlobal: parsedResult.justificacionGlobal,
+          desglose: parsedResult.desglose,
+          analisisCriterios: parsedResult.analisisCriterios,
+          recomendaciones: parsedResult.recomendaciones,
+          nivelEnsayo: parsedResult.nivelEnsayo,
           ensayoOriginal: essay,
-          imagePreview: filePreview,
+          imagePreview: filePreview || null,
           puntuacion: numericPuntuacion,
           uid: user?.uid || 'anonymous',
           createdAt: serverTimestamp()
-        });
+        };
+
+        await addDoc(collection(db, 'essays'), finalData);
       } catch (dbErr) {
         console.warn("Could not save to library, but showing results:", dbErr);
       }
@@ -739,10 +830,10 @@ export default function App() {
                        <motion.div 
                          initial={{ opacity: 0, x: 10 }} 
                          animate={{ opacity: 1, x: 0 }} 
-                         className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-[10px] font-bold uppercase border border-red-100 flex items-center gap-2 max-w-sm text-right"
+                         className="bg-red-50 text-red-600 px-5 py-3 rounded-2xl text-[11px] font-bold uppercase border-2 border-red-100 flex items-center gap-3 max-w-sm text-right shadow-sm"
                        >
-                         <HelpCircle className="w-3 h-3 flex-shrink-0" />
-                         <span>{error}</span>
+                         <HelpCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+                         <span className="leading-tight">{error}</span>
                        </motion.div>
                      )}
                      <button 

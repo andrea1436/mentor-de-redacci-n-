@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import firebaseConfigLocal from '../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -16,5 +16,17 @@ const firebaseConfig = {
 const databaseId = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigLocal.firestoreDatabaseId;
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, databaseId);
+
+// Initialize Firestore with settings to improve connectivity in restricted environments
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    experimentalForceLongPolling: true, // Forces long polling which is often more stable
+  }, databaseId);
+} catch (error) {
+  console.warn("Retrying Firestore initialization with default settings...");
+  firestoreDb = getFirestore(app, databaseId);
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
