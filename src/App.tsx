@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from "motion/react";
 import { FileText, BookOpen, Brain, ImagePlus, User as UserIcon, LogOut, ChevronRight, Sparkles, SpellCheck, Network, Layers, Link as LinkIcon, Eye, HelpCircle, History, Download, Printer } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, getDocFromServer, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -15,10 +14,10 @@ import jsPDF from 'jspdf';
 import logo from './assets/images/escudo.png';
 
 const getApiKey = () => {
-  return process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || "";
+  return ""; // API Key is now handled server-side
 };
 
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+// No genAI initialization on client
 
 enum OperationType {
   CREATE = 'create',
@@ -131,22 +130,6 @@ export default function App() {
       setIsAuthReady(true);
     });
 
-    async function testConnection() {
-      try {
-        // Try to reach the server to verify config
-        await getDocFromServer(doc(db, 'test', 'connection'));
-        console.log("Firestore connection verified.");
-      } catch (error) {
-        // If we're offline, it might just be the initial connection delay
-        if(error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('Could not reach'))) {
-          console.warn("Firestore is taking longer than usual to connect. Retrying in background...");
-        } else {
-          console.error("Firebase configuration check:", error);
-        }
-      }
-    }
-    testConnection();
-
     return () => unsubscribeAuth();
   }, []);
 
@@ -232,13 +215,6 @@ export default function App() {
     setError(null);
     setResult(null);
 
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      setError("No se detectó la clave de API (GEMINI_API_KEY). Configúrala en las variables de entorno.");
-      setLoading(false);
-      return;
-    }
-
     try {
       const prompt = `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
       Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
@@ -272,124 +248,35 @@ export default function App() {
       5. Claridad: Coherencia y precisión léxica.
       6. Argumentación: Solidez de las evidencias.
 
-      ESTUDIANTE: ${studentName}\nGrado: ${grade}\nEnsayo:\n${essay}
+      ESTUDIANTE: ${studentName}
+      Grado: ${grade}
+      Ensayo:
+      ${essay}
 
       Responde estrictamente en formato JSON siguiendo el esquema solicitado.`;
-      const parts: any[] = [{ text: prompt }];
+      
+      let filePart = null;
       if (selectedFile) {
-        const filePart = await fileToGenerativePart(selectedFile);
-        parts.push(filePart);
+        filePart = await fileToGenerativePart(selectedFile);
       }
 
-      const responseSchema: any = {
-        type: Type.OBJECT,
-        properties: {
-          nombreEstudiante: { type: Type.STRING },
-          tituloEnsayo: { type: Type.STRING },
-          grado: { type: Type.STRING },
-          fecha: { type: Type.STRING },
-          transcripcionExacta: { type: Type.STRING },
-          observacionesDetalladas: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                num: { type: Type.NUMBER },
-                parrafo: { type: Type.STRING },
-                linea: { type: Type.NUMBER },
-                fragmento: { type: Type.STRING },
-                categoria: { type: Type.STRING },
-                errorIdentificado: { type: Type.STRING },
-                explicacion: { type: Type.STRING },
-                correccionSugerida: { type: Type.STRING }
-              },
-              required: ["num", "parrafo", "linea", "fragmento", "categoria", "errorIdentificado", "explicacion", "correccionSugerida"]
-            }
-          },
-          resumenCategorias: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                categoria: { type: Type.STRING },
-                cantidad: { type: Type.NUMBER }
-              },
-              required: ["categoria", "cantidad"]
-            }
-          },
-          desempenoGlobal: { type: Type.STRING },
-          justificacionGlobal: { type: Type.STRING },
-          desglose: {
-            type: Type.OBJECT,
-            properties: {
-              tesis: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
-              argumentacion: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
-              coherencia: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
-              estructura: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] },
-              ortografia: { type: Type.OBJECT, properties: { desempeno: { type: Type.STRING }, comentario: { type: Type.STRING } }, required: ["desempeno", "comentario"] }
-            },
-            required: ["tesis", "argumentacion", "coherencia", "estructura", "ortografia"]
-          },
-          analisisCriterios: {
-            type: Type.OBJECT,
-            properties: {
-              ortografia_letras: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-              puntuacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-              estructura: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-              conectores: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-              claridad: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] },
-              sustentacion: { type: Type.OBJECT, properties: { analisis: { type: Type.STRING }, ejemplos: { type: Type.ARRAY, items: { type: Type.STRING } }, mejoras: { type: Type.STRING } }, required: ["analisis", "ejemplos", "mejoras"] }
-            },
-            required: ["ortografia_letras", "puntuacion", "estructura", "conectores", "claridad", "sustentacion"]
-          },
-          recomendaciones: { type: Type.STRING },
-          nivelEnsayo: { type: Type.STRING }
+      const response = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "desempenoGlobal", "justificacionGlobal", "desglose", "analisisCriterios", "recomendaciones", "nivelEnsayo"]
-      };
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ role: "user", parts }],
-        config: {
-          systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
-          Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
-          PROHIBIDO usar números o porcentajes en la valoración global.
-
-          CAPACIDAD VISUAL AVANZADA Y DE COLOR (CRÍTICO):
-          - El manuscrito puede presentar caligrafía CURSIVA (letra pegada), imprenta o una mezcla de ambas. DEBES procesar cada trazo con rigor, identificando letras estilizadas.
-          - El estudiante puede haber usado LAPICERO ROJO u otros colores para recalcar tildes, puntos o letras. 
-          - REGLA DE ORO: Si un signo (tilde, coma, punto) es visible en la imagen, sin importar su color o estilo caligráfico, DEBE ser considerado como presente en el texto.
-          - Observa con detenimiento signos de puntuación minúsculos o trazos finos que podrían confundirse con el fondo del papel.
-
-          REQUISITOS DE ANÁLISIS (RIGOR EXTREMO):
-          1. PRECISIÓN EN TILDES Y CURSIVA: No marques como error una tilde que esté presente visualmente, aunque sea un trazo rápido en cursiva. Analiza minuciosamente las reglas de acentuación.
-          2. PUNTUACIÓN Y ESTILO: Identifica puntos y comas incluso si están escritos de forma tenue o en colores (como rojo).
-          3. MARCAS DE COLOR: Considera los elementos en color como parte integral y correcta del texto.
-          4. NUMERACIÓN POR LÍNEAS: En 'transcripcionExacta', refleja fielmente el texto numerado línea por línea.
-          5. REFERENCIA DE LÍNEA: Indica la LÍNEA EXACTA en cada observación.
-          6. DOBLE CHEQUEO: Si el signo es perceptible visualmente, NO es un error de omisión. Evita falsos positivos a toda costa.
-          7. EXHAUSTIVIDAD TOTAL: Debes identificar y reportar absolutamente TODOS los errores ortográficos (tildes, grafemas, mayúsculas), de puntuación, gramaticales y de sentido encontrados en el texto. No omitas ninguno por pequeño que sea. TODOS deben estar listados en 'observacionesDetalladas'.
-
-          Para el "Análisis Detallado" por criterio (analisisCriterios), para cada uno de los 6 puntos debes:
-          - Analizar profundamente el estado del texto.
-          - Liste ejemplos específicos (citas) del ensayo.
-          - Sugerir una ruta de mejora clara.
-
-          Los 6 criterios son:
-          1. Aspectos ortográficos: Énfasis total en Tildes (sin falsos positivos) y grafemas.
-          2. Puntuación y mayúsculas: Énfasis en Comas, Puntos seguidos/aparte.
-          3. Estructura: Tesis, Desarrollo, Conclusión.
-          4. Conectores: Variedad lógica de nexos.
-          5. Claridad: Coherencia y precisión léxica.
-          6. Argumentación: Solidez de las evidencias.`,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-        }
+        body: JSON.stringify({
+          prompt,
+          filePart,
+        }),
       });
 
-      const responseText = response.text;
-      const rawResult = JSON.parse(responseText || "{}");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al procesar el ensayo en el servidor.");
+      }
+
+      const rawResult = await response.json();
       
       const parsedResult: EvaluationResult = {
         nombreEstudiante: rawResult.nombreEstudiante || studentName,
@@ -712,6 +599,21 @@ export default function App() {
     e.nombreEstudiante.toLowerCase().includes(searchTerm.toLowerCase()) ||
     e.tituloEnsayo.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    console.log("App mounted");
+  }, []);
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-label text-xs font-bold uppercase tracking-widest text-slate-400">Iniciando Escriba...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen selection:bg-primary/20 selection:text-on-background">
