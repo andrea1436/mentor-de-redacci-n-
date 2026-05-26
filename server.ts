@@ -101,11 +101,7 @@ async function startServer() {
         required: ["nombreEstudiante", "tituloEnsayo", "grado", "fecha", "transcripcionExacta", "observacionesDetalladas", "resumenCategorias", "desempenoGlobal", "justificacionGlobal", "desglose", "analisisCriterios", "recomendaciones", "nivelEnsayo"]
       };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: filePart ? [{ parts: [filePart, { text: prompt }] }] : [{ parts: [{ text: prompt }] }],
-        config: {
-          systemInstruction: `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
+      const systemInstruction = `Actúa como un Mentor Académico de la I.E. RETIRO DE LOS INDIOS (Grado 9) con capacidad de visión avanzada.
           Tu misión es evaluar ensayos de forma estrictamente CUALITATIVA usando: Superior (S), Alto (A), Básico (B), Bajo (BJ). 
           PROHIBIDO usar números o porcentajes en la valoración global.
 
@@ -135,16 +131,57 @@ async function startServer() {
           3. Estructura: Tesis, Desarrollo, Conclusión.
           4. Conectores: Variedad lógica de nexos.
           5. Claridad: Coherencia y precisión léxica.
-          6. Argumentación: Solidez de las evidencias.`,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-        }
-      });
+          6. Argumentación: Solidez de las evidencias.`;
 
-      res.json(JSON.parse(response.text || "{}"));
+      const contentsPayload = filePart ? [{ parts: [filePart, { text: prompt }] }] : [{ parts: [{ text: prompt }] }];
+
+      const modelsToTry = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3-flash-preview"];
+      let lastError: any = null;
+      let responseText = "";
+
+      for (const currentModel of modelsToTry) {
+        let attempt = 0;
+        const maxAttempts = 2;
+        while (attempt < maxAttempts) {
+          try {
+            console.log(`[Evaluate API] Trying ${currentModel} (Attempt ${attempt + 1}/${maxAttempts})...`);
+            const response = await ai.models.generateContent({
+              model: currentModel,
+              contents: contentsPayload,
+              config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema,
+              }
+            });
+            responseText = response.text || "";
+            if (responseText) {
+              console.log(`[Evaluate API] Success with model ${currentModel}`);
+              break;
+            }
+          } catch (error: any) {
+            attempt++;
+            lastError = error;
+            console.error(`[Evaluate API] Error on ${currentModel} (Attempt ${attempt}):`, error.message || error);
+            if (attempt < maxAttempts) {
+              console.log("[Evaluate API] Waiting before retrying...");
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+        if (responseText) {
+          break;
+        }
+      }
+
+      if (!responseText) {
+        throw lastError || new Error("All active models and retry attempts failed.");
+      }
+
+      res.json(JSON.parse(responseText));
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error.message || "Error interno del servidor al consultar Gemini." });
     }
   });
 
